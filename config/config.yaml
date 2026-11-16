@@ -1,0 +1,137 @@
+# ==============================================================================
+# Configuration: Reinforcement Learning Game-Playing Bot
+# ==============================================================================
+
+project:
+  name: "autonomous-rl-game-bot"
+  version: "1.0.0"
+  random_seed: 42
+  device: "cpu"  # cpu or cuda
+
+# ------------------------------------------------------------------------------
+# Environments
+# ------------------------------------------------------------------------------
+environments:
+  primary: "LunarLander-v3"
+  baseline: "CartPole-v1"
+  lunar_lander:
+    env_id: "LunarLander-v3"
+    solved_reward_threshold: 200.0
+    max_episode_steps: 1000
+    gravity: -10.0
+    enable_wind: false
+    wind_power: 15.0
+    turbulence_power: 1.5
+  cartpole:
+    env_id: "CartPole-v1"
+    solved_reward_threshold: 475.0
+    max_episode_steps: 500
+
+# ------------------------------------------------------------------------------
+# Algorithm Configurations
+# ------------------------------------------------------------------------------
+algorithms:
+  # -------------------- Deep Q-Network (DQN) --------------------
+  dqn:
+    baseline:
+      learning_rate: 0.001
+      buffer_size: 50000
+      learning_starts: 1000
+      batch_size: 64
+      tau: 1.0
+      gamma: 0.99
+      train_freq: 4
+      gradient_steps: 1
+      target_update_interval: 1000
+      exploration_initial_eps: 1.0
+      exploration_final_eps: 0.05
+      exploration_fraction: 0.2
+      max_grad_norm: 10.0
+      policy_kwargs:
+        net_arch: [128, 128]
+      total_timesteps: 120000
+
+    optimized:
+      learning_rate: 0.00063
+      buffer_size: 100000
+      learning_starts: 2000
+      batch_size: 128
+      tau: 0.005  # Soft target updates (Polyak averaging)
+      gamma: 0.995
+      train_freq: 4
+      gradient_steps: 1
+      target_update_interval: 250
+      exploration_initial_eps: 1.0
+      exploration_final_eps: 0.02
+      exploration_fraction: 0.25
+      max_grad_norm: 1.0
+      policy_kwargs:
+        net_arch: [256, 256]
+      total_timesteps: 150000
+
+  # ---------------- Proximal Policy Optimization (PPO) ----------------
+  ppo:
+    baseline:
+      learning_rate: 0.0003
+      n_steps: 2048
+      batch_size: 64
+      n_epochs: 10
+      gamma: 0.99
+      gae_lambda: 0.95
+      clip_range: 0.2
+      ent_coef: 0.0
+      vf_coef: 0.5
+      max_grad_norm: 0.5
+      policy_kwargs:
+        net_arch:
+          pi: [64, 64]
+          vf: [64, 64]
+      total_timesteps: 120000
+
+    optimized:
+      learning_rate: 0.00025
+      n_steps: 1024
+      batch_size: 64
+      n_epochs: 10
+      gamma: 0.999
+      gae_lambda: 0.98
+      clip_range: 0.2
+      ent_coef: 0.01  # Entropy regularization for continuous exploration
+      vf_coef: 0.5
+      max_grad_norm: 0.5
+      policy_kwargs:
+        net_arch:
+          pi: [256, 256]
+          vf: [256, 256]
+      total_timesteps: 150000
+
+# ------------------------------------------------------------------------------
+# Training Callbacks and Checkpointing
+# ------------------------------------------------------------------------------
+training:
+  eval_freq: 10000
+  n_eval_episodes: 10
+  save_freq: 25000
+  log_interval: 10
+  verbose: 1
+
+# ------------------------------------------------------------------------------
+# Final Evaluation Settings
+# ------------------------------------------------------------------------------
+evaluation:
+  n_episodes: 100
+  deterministic: true
+  render_video: true
+  video_fps: 30
+
+# ------------------------------------------------------------------------------
+# Storage Paths
+# ------------------------------------------------------------------------------
+paths:
+  models_dir: "models"
+  dqn_model_dir: "models/dqn"
+  ppo_model_dir: "models/ppo"
+  logs_dir: "results/training_logs"
+  eval_dir: "results/evaluation"
+  plots_dir: "results/plots"
+  videos_dir: "results/videos"

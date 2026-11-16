@@ -1,0 +1,20 @@
+{
+  "n_episodes": 100,
+  "mean_reward": 17.58,
+  "std_reward": 176.47,
+  "median_reward": -18.24,
+  "min_reward": -285.07,
+  "max_reward": 301.77,
+  "iqr_reward": 383.58,
+  "ci_95_low": -17.44,
+  "ci_95_high": 52.59,
+  "mean_episode_length": 358.44,
+  "median_episode_length": 289.0,
+  "std_episode_length": 201.4,
+  "success_rate_percent": 31.0,
+  "crash_rate_percent": 30.0,
+  "improvement_over_random_percent": 109.76,
+  "model_path": "C:\\Users\\Harsha\\Downloads\\reinforcement\\models\\dqn\\dqn_lunarlander_final.zip",
+  "csv_path": "C:\\Users\\Harsha\\Downloads\\reinforcement\\results\\evaluation\\dqn_eval_100eps.csv",
+  "algorithm": "DQN"
+}
