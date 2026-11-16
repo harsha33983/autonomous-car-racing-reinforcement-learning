@@ -58,3 +58,8 @@ def load_racing_agent(
         return agent.load(model_path, env=env)
     else:
         raise ValueError(f"Could not infer algorithm from '{algorithm}'. Choose 'ppo' or 'dqn'.")
+
+
+# Backward compatibility aliases
+load_agent = load_racing_agent
+create_agent = create_racing_agent

@@ -86,16 +86,20 @@ def render_simulation():
                 st.error("Please train a model or select a valid model checkpoint first.")
                 return
 
-            with st.spinner("Initializing CarRacing-v3 physics and loading vision neural network..."):
-                if algo_key == "dqn":
-                    env = make_discrete_car_racing_env(seed=sim_seed, render_mode="rgb_array")
-                else:
-                    env = make_car_racing_env(continuous=True, seed=sim_seed, render_mode="rgb_array")
+            try:
+                with st.spinner("Initializing CarRacing-v3 physics and loading vision neural network..."):
+                    if algo_key == "dqn":
+                        env = make_discrete_car_racing_env(seed=sim_seed, render_mode="rgb_array")
+                    else:
+                        env = make_car_racing_env(continuous=True, seed=sim_seed, render_mode="rgb_array")
 
-                if algo_key != "random":
-                    agent = load_racing_agent(algo_key, selected_model, env=env)
-                else:
-                    agent = None
+                    if algo_key != "random":
+                        agent = load_racing_agent(algo_key, selected_model, env=env)
+                    else:
+                        agent = None
+            except Exception as e:
+                st.error(f"Failed to initialize simulation environment or load model weights: {e}")
+                return
 
             frame_placeholder = st.empty()
             telemetry_cols = st.columns(5)
@@ -111,39 +115,41 @@ def render_simulation():
             total_reward = 0.0
             step = 0
 
-            # Step loop
-            while not (done or truncated) and step < max_sim_steps:
-                if agent is not None:
-                    action, _ = agent.predict(obs, deterministic=True)
-                else:
-                    action = env.action_space.sample()
-
-                obs, reward, done, truncated, info = env.step(action)
-                total_reward += float(reward)
-                step += 1
-
-                # Render frame every 2 steps
-                if step % 2 == 0 or done or truncated:
-                    frame = env.render()
-                    if frame is not None:
-                        annotated = overlay_racing_telemetry(
-                            frame, algo_key.upper(), step, action, total_reward, info.get("telemetry")
-                        )
-                        frame_placeholder.image(annotated, use_container_width=True)
-
-                    telemetry = info.get("telemetry", {})
-                    metric_score.metric("Score", f"{total_reward:+.1f}")
-                    metric_step.metric("Step", f"{step}")
-                    metric_prog.metric("Track Progress", f"{telemetry.get('track_progress', 0.0):.1f}%")
-
-                    if isinstance(action, (int, np.integer)):
-                        steer_val = DISCRETE_ACTIONS.get(int(action), [0, 0, 0])[0]
+            try:
+                # Step loop
+                while not (done or truncated) and step < max_sim_steps:
+                    if agent is not None:
+                        action, _ = agent.predict(obs, deterministic=True)
                     else:
-                        steer_val = float(action[0])
-                    metric_steer.metric("Steering", f"{steer_val:+.2f}")
+                        action = env.action_space.sample()
 
-                    off_track = telemetry.get("off_track_count", 0)
-                    metric_status.metric("Track Status", "OFF-TRACK" if off_track > 0 else "ON-TRACK")
+                    obs, reward, done, truncated, info = env.step(action)
+                    total_reward += float(reward)
+                    step += 1
 
-            env.close()
+                    # Render frame every 2 steps
+                    if step % 2 == 0 or done or truncated:
+                        frame = env.render()
+                        if frame is not None:
+                            annotated = overlay_racing_telemetry(
+                                frame, algo_key.upper(), step, action, total_reward, info.get("telemetry")
+                            )
+                            frame_placeholder.image(annotated, use_container_width=True)
+
+                        telemetry = info.get("telemetry", {})
+                        metric_score.metric("Score", f"{total_reward:+.1f}")
+                        metric_step.metric("Step", f"{step}")
+                        metric_prog.metric("Track Progress", f"{telemetry.get('track_progress', 0.0):.1f}%")
+
+                        if isinstance(action, (int, np.integer)):
+                            steer_val = DISCRETE_ACTIONS.get(int(action), [0, 0, 0])[0]
+                        else:
+                            steer_val = float(action[0])
+                        metric_steer.metric("Steering", f"{steer_val:+.2f}")
+
+                        off_track = telemetry.get("off_track_count", 0)
+                        metric_status.metric("Track Status", "OFF-TRACK" if off_track > 0 else "ON-TRACK")
+            finally:
+                env.close()
+
             st.success(f"Autonomous episode completed! Final Score: {total_reward:+.2f} over {step} steps.")

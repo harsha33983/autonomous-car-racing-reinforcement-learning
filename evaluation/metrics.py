@@ -4,7 +4,7 @@ Evaluation Metrics for Autonomous Car Racing
 Statistical computations for autonomous racing policy evaluation.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 from scipy import stats
 

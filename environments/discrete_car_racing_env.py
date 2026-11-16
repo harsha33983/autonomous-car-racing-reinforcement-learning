@@ -40,6 +40,8 @@ DISCRETE_ACTION_NAMES: Dict[int, str] = {
     5: "Straight + Brake",
     6: "Straight + Coast",
 }
+
+# Alias for tests and legacy callers
 ACTION_NAMES = DISCRETE_ACTION_NAMES
 
 
@@ -129,3 +131,4 @@ def make_vectorized_discrete_car_racing(
         return _thunk
 
     return DummyVecEnv([_init(i) for i in range(n_envs)])
+

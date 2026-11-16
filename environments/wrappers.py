@@ -38,16 +38,7 @@ class CarRacingTelemetryWrapper(gym.Wrapper):
         self.last_action = [0.0, 0.0, 0.0]
 
         obs, info = self.env.reset(**kwargs)
-        telemetry = self._extract_telemetry(obs, reward=0.0)
-        telemetry["is_off_track"] = False
-        telemetry["tiles_visited"] = 0
-        telemetry["track_progress_percent"] = 0.0
-        telemetry["track_progress"] = 0.0
-        telemetry["total_tiles"] = 300
-        telemetry["off_track_count"] = 0
-        telemetry["is_lap_completed"] = False
-        telemetry["lap_completed"] = False
-        info["telemetry"] = telemetry
+        info["telemetry"] = self._extract_telemetry(obs, reward=0.0)
         return obs, info
 
     def step(self, action: Any) -> Tuple[np.ndarray, float, bool, bool, Dict[str, Any]]:
@@ -80,19 +71,16 @@ class CarRacingTelemetryWrapper(gym.Wrapper):
         telemetry = self._extract_telemetry(obs, reward)
         telemetry["is_off_track"] = is_off_track
         telemetry["tiles_visited"] = self.positive_reward_tiles
-        telemetry["total_tiles"] = 300
-        telemetry["off_track_count"] = self.off_track_counter
 
         # Estimated track progress (CarRacing tracks typically consist of ~280-320 tiles)
         telemetry["track_progress_percent"] = min(100.0, round((self.positive_reward_tiles / 300.0) * 100.0, 1))
-        telemetry["track_progress"] = telemetry["track_progress_percent"]
         telemetry["is_lap_completed"] = bool(self.cumulative_reward >= 800.0 or telemetry["track_progress_percent"] >= 95.0)
-        telemetry["lap_completed"] = telemetry["is_lap_completed"]
 
         info["telemetry"] = telemetry
         return obs, reward, terminated, truncated, info
 
     def _extract_telemetry(self, obs: np.ndarray, reward: float) -> Dict[str, Any]:
+        prog = min(100.0, round((self.positive_reward_tiles / 300.0) * 100.0, 1))
         return {
             "episode_steps": self.episode_steps,
             "cumulative_reward": round(self.cumulative_reward, 2),
@@ -101,7 +89,12 @@ class CarRacingTelemetryWrapper(gym.Wrapper):
             "gas": round(self.last_action[1], 2),
             "brake": round(self.last_action[2], 2),
             "off_track_steps": self.off_track_counter,
+            "off_track_count": self.off_track_counter,
             "tiles_visited": self.positive_reward_tiles,
+            "track_progress": prog,
+            "track_progress_percent": prog,
+            "is_off_track": self.off_track_counter >= self.off_track_limit,
+            "is_lap_completed": bool(self.cumulative_reward >= 800.0 or prog >= 95.0),
         }
 
 
@@ -159,3 +152,4 @@ class FrameSkipWrapper(gym.Wrapper):
                 break
 
         return obs, total_reward, terminated, truncated, info
+

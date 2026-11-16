@@ -76,8 +76,8 @@ class RacingCheckpointManager:
             json.dump(manifest_data, f, indent=2)
 
     def load_manifest(self) -> Dict[str, Any]:
-        """Load manifest JSON file."""
-        if os.path.exists(self.manifest_path):
-            with open(self.manifest_path, "r") as f:
-                return json.load(f)
-        return {}
+        """Load manifest JSON file if it exists."""
+        if not os.path.exists(self.manifest_path):
+            return {}
+        with open(self.manifest_path, "r") as f:
+            return json.load(f)

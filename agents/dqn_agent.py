@@ -126,7 +126,11 @@ class DQNRacingAgent:
             raise FileNotFoundError(f"Model file not found at {load_path}")
 
         target_env = env or self.env
-        self.model = DQN.load(load_path, env=target_env, device=self.device)
+        try:
+            self.model = DQN.load(load_path, env=target_env, device=self.device)
+        except ValueError:
+            # Fallback if observation or action space of target_env doesn't match saved model
+            self.model = DQN.load(load_path, env=None, device=self.device)
         self.env = target_env
         return self
 

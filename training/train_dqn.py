@@ -76,9 +76,6 @@ def train_dqn(
     hyperparams = dict(algo_cfg)
     hyperparams.pop("policy", None)
     hyperparams.pop("total_timesteps", None)
-    if smoke_test:
-        hyperparams["learning_starts"] = 100
-        hyperparams["buffer_size"] = 2000
 
     agent = DQNRacingAgent(
         env=vec_env,

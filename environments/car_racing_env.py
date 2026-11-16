@@ -37,7 +37,7 @@ def make_car_racing_env(
     """
     Factory function for continuous CarRacing-v3 environment.
     """
-    env_kwargs = {"continuous": True}
+    env_kwargs = {"continuous": continuous}
     if render_mode is not None:
         env_kwargs["render_mode"] = render_mode
 
@@ -89,3 +89,4 @@ def make_vectorized_car_racing(
         return _thunk
 
     return DummyVecEnv([_init(i) for i in range(n_envs)])
+
