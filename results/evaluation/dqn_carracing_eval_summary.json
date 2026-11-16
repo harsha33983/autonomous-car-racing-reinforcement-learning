@@ -1,0 +1,21 @@
+{
+  "n_episodes": 5,
+  "mean_reward": 15.78,
+  "std_reward": 12.7,
+  "median_reward": 17.34,
+  "min_reward": -0.2,
+  "max_reward": 31.22,
+  "iqr_reward": 17.24,
+  "ci_95_low": 0.01,
+  "ci_95_high": 31.55,
+  "mean_episode_length": 121.8,
+  "median_episode_length": 101.0,
+  "std_episode_length": 28.48,
+  "mean_track_progress_percent": 3.6,
+  "max_track_progress_percent": 5.3,
+  "track_completion_rate_percent": 0.0,
+  "improvement_over_random_percent": 131.56,
+  "model_path": "C:\\Users\\Harsha\\Downloads\\reinforcement\\models\\dqn\\dqn_carracing_final.zip",
+  "csv_path": "C:\\Users\\Harsha\\Downloads\\reinforcement\\results\\evaluation\\dqn_carracing_eval_5eps.csv",
+  "algorithm": "DQN"
+}

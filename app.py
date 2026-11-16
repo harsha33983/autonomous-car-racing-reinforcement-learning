@@ -1,7 +1,7 @@
 """
-Reinforcement Learning Game-Playing Bot - Interactive Web Dashboard
-==================================================================
-Main entry point for Streamlit web application.
+Autonomous Car Racing AI - Interactive Streamlit Dashboard
+==========================================================
+Main entry point for autonomous racing web application.
 """
 
 import os
@@ -18,8 +18,8 @@ from dashboard.model_info import render_model_info
 
 # Page Configuration
 st.set_page_config(
-    page_title="Autonomous RL Game-Playing Bot",
-    page_icon="🚀",
+    page_title="Autonomous Car Racing AI",
+    page_icon="🏎️",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -53,8 +53,8 @@ st.markdown(
 
 def main():
     # Sidebar
-    st.sidebar.title("🚀 RL Game Bot")
-    st.sidebar.caption("Autonomous Agent Engineering System")
+    st.sidebar.title("🏎️ Car Racing AI")
+    st.sidebar.caption("Autonomous Reinforcement Learning")
 
     # Quick Status
     dqn_models = glob.glob("models/dqn/**/*.zip", recursive=True) + glob.glob("models/dqn/*.zip")
@@ -78,8 +78,8 @@ def main():
         "A. Project Overview",
         "B. Training Analytics",
         "C. Algorithm Comparison",
-        "D. Live Game Simulation",
-        "E. Model Evaluation (100 Ep)",
+        "D. Live Racing Simulation",
+        "E. Model Evaluation",
         "F. Model Architecture & Registry",
     ]
     selected_page = st.sidebar.radio("Select View:", nav_options, index=0)
@@ -90,8 +90,8 @@ def main():
         **System Specs**:
         - **Gymnasium**: `1.4.0`
         - **PyTorch**: `2.13.0`
-        - **Engine**: Box2D LunarLander-v3
-        - **Algorithms**: DQN & PPO
+        - **Environment**: Box2D CarRacing-v3
+        - **Algorithms**: Continuous PPO & Discrete DQN
         """
     )
 

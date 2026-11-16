@@ -1,0 +1,7 @@
+episode,seed,reward,length,track_progress_percent,tiles_visited,total_tiles,lap_completed,off_track_count,off_track_fraction,algorithm
+1,1000,-24.915,500,7.0,21,300,False,10,0.0,Random
+2,1001,-32.692,500,6.7,20,300,False,38,0.0,Random
+1,1000,17.343,101,3.3,10,300,False,51,0.0,DQN
+2,1001,23.887,153,5.3,16,300,False,50,0.0,DQN
+1,1000,154.687,131,17.0,51,300,False,50,0.0,PPO
+2,1001,210.385,150,24.0,72,300,False,50,0.0,PPO

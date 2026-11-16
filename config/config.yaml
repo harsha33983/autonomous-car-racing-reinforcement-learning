@@ -1,125 +1,94 @@
 # ==============================================================================
-# Configuration: Reinforcement Learning Game-Playing Bot
+# Configuration: Autonomous Car Racing AI using Reinforcement Learning
 # ==============================================================================
 
 project:
-  name: "autonomous-rl-game-bot"
-  version: "1.0.0"
+  name: "autonomous-car-racing-ai"
+  version: "2.0.0"
   random_seed: 42
   device: "cpu"  # cpu or cuda
 
 # ------------------------------------------------------------------------------
-# Environments
+# Environment Specification
 # ------------------------------------------------------------------------------
-environments:
-  primary: "LunarLander-v3"
-  baseline: "CartPole-v1"
-  lunar_lander:
-    env_id: "LunarLander-v3"
-    solved_reward_threshold: 200.0
-    max_episode_steps: 1000
-    gravity: -10.0
-    enable_wind: false
-    wind_power: 15.0
-    turbulence_power: 1.5
-  cartpole:
-    env_id: "CartPole-v1"
-    solved_reward_threshold: 475.0
-    max_episode_steps: 500
+environment:
+  env_id: "CarRacing-v3"
+  domain_name: "Continuous Formula Track Racing"
+  observation:
+    raw_shape: [96, 96, 3]
+    processed_shape: [84, 84, 1]  # Grayscale downsampled for fast CPU training
+    frame_skip: 2                # Action repetition for fluid steering & fast exploration
+    frame_stack: 4               # Velocity & momentum perception
+  actions:
+    continuous:
+      steering: [-1.0, 1.0]      # Left (-1.0) to Right (+1.0)
+      gas: [0.0, 1.0]            # Throttle [0.0, 1.0]
+      brake: [0.0, 1.0]          # Friction Braking [0.0, 1.0]
+    discrete_mapping:
+      0: [0.0, 0.7, 0.0]         # Straight + Accelerate
+      1: [-0.8, 0.4, 0.0]        # Steer Left + Accelerate
+      2: [0.8, 0.4, 0.0]         # Steer Right + Accelerate
+      3: [-0.8, 0.0, 0.6]        # Steer Left + Brake
+      4: [0.8, 0.0, 0.6]         # Steer Right + Brake
+      5: [0.0, 0.0, 0.6]         # Straight + Brake
+      6: [0.0, 0.0, 0.0]         # Straight + Coast
+  reward:
+    tile_visit_bonus: 1000.0     # Distributed per unique track tile visited (~3.5 pts/tile)
+    step_penalty: -0.1           # Per-frame time penalty
+    out_of_bounds_threshold: 50  # Early truncation if off-track continuously
 
 # ------------------------------------------------------------------------------
-# Algorithm Configurations
+# Reinforcement Learning Algorithms
 # ------------------------------------------------------------------------------
 algorithms:
-  # -------------------- Deep Q-Network (DQN) --------------------
-  dqn:
-    baseline:
-      learning_rate: 0.001
-      buffer_size: 50000
-      learning_starts: 1000
-      batch_size: 64
-      tau: 1.0
-      gamma: 0.99
-      train_freq: 4
-      gradient_steps: 1
-      target_update_interval: 1000
-      exploration_initial_eps: 1.0
-      exploration_final_eps: 0.05
-      exploration_fraction: 0.2
-      max_grad_norm: 10.0
-      policy_kwargs:
-        net_arch: [128, 128]
-      total_timesteps: 120000
-
-    optimized:
-      learning_rate: 0.00063
-      buffer_size: 100000
-      learning_starts: 2000
-      batch_size: 128
-      tau: 0.005  # Soft target updates (Polyak averaging)
-      gamma: 0.995
-      train_freq: 4
-      gradient_steps: 1
-      target_update_interval: 250
-      exploration_initial_eps: 1.0
-      exploration_final_eps: 0.02
-      exploration_fraction: 0.25
-      max_grad_norm: 1.0
-      policy_kwargs:
-        net_arch: [256, 256]
-      total_timesteps: 150000
-
   # ---------------- Proximal Policy Optimization (PPO) ----------------
   ppo:
-    baseline:
-      learning_rate: 0.0003
-      n_steps: 2048
-      batch_size: 64
-      n_epochs: 10
-      gamma: 0.99
-      gae_lambda: 0.95
-      clip_range: 0.2
-      ent_coef: 0.0
-      vf_coef: 0.5
-      max_grad_norm: 0.5
-      policy_kwargs:
-        net_arch:
-          pi: [64, 64]
-          vf: [64, 64]
-      total_timesteps: 120000
+    policy: "CnnPolicy"
+    learning_rate: 0.0003
+    n_steps: 512
+    batch_size: 64
+    n_epochs: 10
+    gamma: 0.99
+    gae_lambda: 0.95
+    clip_range: 0.2
+    ent_coef: 0.01               # Entropy bonus for exploratory steering
+    vf_coef: 0.5
+    max_grad_norm: 0.5
+    total_timesteps: 50000       # Target CPU training timesteps
 
-    optimized:
-      learning_rate: 0.00025
-      n_steps: 1024
-      batch_size: 64
-      n_epochs: 10
-      gamma: 0.999
-      gae_lambda: 0.98
-      clip_range: 0.2
-      ent_coef: 0.01  # Entropy regularization for continuous exploration
-      vf_coef: 0.5
-      max_grad_norm: 0.5
-      policy_kwargs:
-        net_arch:
-          pi: [256, 256]
-          vf: [256, 256]
-      total_timesteps: 150000
+  # -------------------- Deep Q-Network (DQN) --------------------
+  dqn:
+    policy: "CnnPolicy"
+    learning_rate: 0.00025
+    buffer_size: 15000           # Memory-efficient replay buffer for CPU (~100 MB RAM)
+    learning_starts: 1000
+    batch_size: 64
+    tau: 1.0
+    gamma: 0.99
+    train_freq: 4
+    gradient_steps: 1
+    target_update_interval: 1000
+    exploration_initial_eps: 1.0
+    exploration_final_eps: 0.05
+    exploration_fraction: 0.25
+    max_grad_norm: 10.0
+    total_timesteps: 50000       # Target CPU training timesteps
 
 # ------------------------------------------------------------------------------
 # Training Callbacks and Checkpointing
 # ------------------------------------------------------------------------------
 training:
-  eval_freq: 10000
-  n_eval_episodes: 10
-  save_freq: 25000
+  eval_freq: 5000
+  n_eval_episodes: 5
+  save_freq: 10000
   log_interval: 10
   verbose: 1
 
 # ------------------------------------------------------------------------------
-# Final Evaluation Settings
+# Evaluation Settings
 # ------------------------------------------------------------------------------
 evaluation:
-  n_episodes: 100
+  n_episodes: 20
   deterministic: true
   render_video: true
   video_fps: 30
@@ -129,9 +98,10 @@ evaluation:
 # ------------------------------------------------------------------------------
 paths:
   models_dir: "models"
-  dqn_model_dir: "models/dqn"
   ppo_model_dir: "models/ppo"
+  dqn_model_dir: "models/dqn"
   logs_dir: "results/training_logs"
   eval_dir: "results/evaluation"
+  charts_dir: "results/charts"
   plots_dir: "results/plots"
   videos_dir: "results/videos"

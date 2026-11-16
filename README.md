@@ -1,307 +1,362 @@
-# Autonomous Reinforcement Learning Game-Playing Bot
-### Production-Grade Deep RL Architecture, Training Pipeline, Statistical Evaluation & Interactive Web Deployment
+# Autonomous Car Racing AI using Reinforcement Learning
+### Production-Grade Deep RL Architecture, Vision-Based Perception, Continuous & Discrete Control, Statistical Evaluation & Interactive Web Deployment
 
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
-[![Gymnasium](https://img.shields.io/badge/Gymnasium-Box2D-brightgreen.svg)](https://gymnasium.farama.org/)
+[![Gymnasium](https://img.shields.io/badge/Gymnasium-CarRacing--v3-brightgreen.svg)](https://gymnasium.farama.org/environments/box2d/car_racing/)
 [![Stable-Baselines3](https://img.shields.io/badge/Stable--Baselines3-v2.3%2B-orange.svg)](https://stable-baselines3.readthedocs.io/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.0%2B-red.svg)](https://pytorch.org/)
-[![Streamlit](https://img.shields.io/badge/Streamlit-App-FF4B4B.svg)](https://streamlit.io/)
-[![Tests](https://img.shields.io/badge/Tests-11%20Passed-success.svg)]()
+[![Streamlit](https://img.shields.io/badge/Streamlit-Dashboard-FF4B4B.svg)](https://streamlit.io/)
+[![Box2D](https://img.shields.io/badge/Physics-Box2D-purple.svg)]()
 
 ---
 
 ## 1. Project Introduction
 
-This repository delivers an end-to-end, production-grade **Autonomous Reinforcement Learning Game-Playing Bot**. Built upon Farama Gymnasium's continuous physics simulation (`LunarLander-v3`) with baseline comparison on `CartPole-v1`, this system trains deep neural networks to master complex real-time aerodynamic flight control without human demonstration or supervised labels.
+This repository provides an end-to-end, production-grade **Autonomous Car Racing AI** system built on Farama Gymnasium's continuous physics racing environment: **`CarRacing-v3`**.
 
-Unlike toy demonstrations or mock implementations, this repository contains **actual trained model weights**, reproducible training logs, automated statistical evaluation over 100 test seeds, publication-quality performance curves, and an interactive **Streamlit Web Dashboard**.
+The autonomous racing agent learns to steer left and right, accelerate, brake, navigate high-speed curves, adhere to optimal racing lines, and recover from off-track excursions purely through trial-and-error environmental interaction. The system processes raw visual birds-eye track camera frames via Deep Convolutional Neural Networks (CNNs) without any human driver demonstrations or hard-coded trajectory waypoints.
+
+Unlike toy simulations or mock projects, this repository contains **actual trained neural network weights**, reproducible training pipelines, automated statistical benchmark evaluation across matching test track seeds, publication-quality visualizations, high-definition recorded replays with an autonomous telemetry HUD overlay, and an interactive **Streamlit Web Dashboard**.
 
 ---
 
-## 2. Problem Statement
+## 2. Problem Statement & Motivation
 
-Landing a spacecraft safely between two landing flags under low-gravity physics presents severe non-linear control challenges:
-- **Continuous state space**: Dynamics depend on 8 real-valued variables (position, velocity, angle, angular velocity, and ground contacts).
-- **Delayed & sparse reward signals**: Prematurely firing thrusters expends fuel and induces destabilizing torque, while failure to decelerate results in catastrophic high-velocity impacts.
-- **Dynamic instability**: Unbalanced horizontal momentum or excessive tilt triggers rollover crashes (-100 penalty), while hovering without landing depletes score through frame-wise fuel costs.
+Autonomous track racing represents one of the most demanding benchmarks in reinforcement learning and robotics:
+- **High-Dimensional Visual State**: Observations are continuous camera pixel arrays containing track curves, curbs, rumble strips, and grass boundaries rather than low-dimensional coordinate arrays.
+- **Continuous Multimodal Actuation**: Maneuvering a high-speed vehicle requires simultaneous, fine-grained control over steering angle $[-1.0, 1.0]$, throttle acceleration $[0.0, 1.0]$, and friction braking $[0.0, 1.0]$.
+- **Inertia, Momentum & Slip Dynamics**: Box2D wheel-ground friction dynamics induce centrifugal drift, tire skidding, and spin-outs when cornering at excessive speeds.
+- **Sparse, Path-Dependent Rewards**: The agent receives positive reinforcement only when crossing new track tiles along the forward racing direction, while suffering time penalties every frame and early episode truncation upon veering off-track.
 
-The objective is to train autonomous agents that discover an optimal flight envelope through trial-and-error environmental interaction.
+The engineering challenge is to design, train, and evaluate autonomous agents capable of closing the perception-action loop reliably on standard CPU hardware.
 
 ---
 
 ## 3. Project Objectives
 
-1. **Autonomous Perception & Control**: Continuously observe the 8-dimensional state vector and issue discrete engine throttle commands (0: Coast, 1: Left Thruster, 2: Main Engine, 3: Right Thruster) at 30 Hz.
-2. **Multi-Algorithmic Benchmark**: Implement, tune, and empirically contrast value-based **Deep Q-Networks (DQN)** against policy gradient **Proximal Policy Optimization (PPO)**.
-3. **MLOps Best Practices**: Modular pipeline architecture separating environment wrappers, agent architectures, callbacks, checkpoint manifests, and evaluation suites.
-4. **Empirical Rigor**: Evaluate trained weights over 100 independent test episodes, reporting mean, median, standard deviation, interquartile range (IQR), 95% confidence intervals, and hypothesis testing (Welch's t-test and Mann-Whitney U).
-5. **Interactive Operational Deployment**: Provide a rich Streamlit dashboard featuring live telemetry simulation, interactive Plotly learning dynamics, and checkpoint browsers.
+1. **Autonomous Visual Perception**: Process top-down track camera frames using a Nature CNN feature extractor to perceive track contours, vehicle heading, and asphalt edges.
+2. **Dual-Paradigm Reinforcement Learning**: Implement, train, and benchmark two distinct RL algorithmic formulations:
+   - **Continuous PPO (Primary)**: Proximal Policy Optimization operating in the native 3D continuous action space.
+   - **Discrete DQN (Comparative)**: Deep Q-Network operating over a 7-action tactical maneuver palette.
+3. **CPU-Optimized Vision Pipeline**: Implement grayscale conversion, spatial downsampling to $(84, 84, 1)$, and temporal frame skipping ($k=2$) to achieve 3–4$\times$ faster rollout simulation without loss of critical track edge contrast.
+4. **Statistical Evaluation Suite**: Benchmark trained weights across identical track seeds, computing mean, standard deviation, median, IQR, 95% confidence intervals, track progress %, lap completion %, Welch's two-sample $t$-test, Mann-Whitney $U$ test, and Cohen's $d$ effect sizes.
+5. **Interactive Streamlit Dashboard**: Deploy an operational web application featuring live track execution, telemetry HUD visualization, Plotly training curves, and model registry management.
 
 ---
 
-## 4. Reinforcement Learning Fundamentals
+## 4. Reinforcement Learning & MDP Formulation
 
-The environment is modeled as a discrete-time discounted **Markov Decision Process (MDP)** defined by the 5-tuple:
+The autonomous racing domain is formalized as a continuous-state discounted **Markov Decision Process (MDP)** defined by the 5-tuple:
 $$\mathcal{M} = \langle \mathcal{S}, \mathcal{A}, \mathcal{P}, \mathcal{R}, \gamma \rangle$$
 
-- **State Space $\mathcal{S} \subset \mathbb{R}^8$**:
-  1. $x$: Horizontal displacement from pad center ($[-1.5, 1.5]$)
-  2. $y$: Vertical altitude above surface ($[-1.5, 1.5]$)
-  3. $v_x$: Linear horizontal velocity ($[-5.0, 5.0]$)
-  4. $v_y$: Linear vertical descent velocity ($[-5.0, 5.0]$)
-  5. $\theta$: Lander body pitch angle in radians ($[-\pi, \pi]$)
-  6. $\omega$: Angular velocity ($[-5.0, 5.0]$)
-  7. $c_{left} \in \{0.0, 1.0\}$: Left landing leg ground contact
-  8. $c_{right} \in \{0.0, 1.0\}$: Right landing leg ground contact
+### State Space ($\mathcal{S}$)
+- **Raw Environment Observation**: $96 \times 96 \times 3$ RGB pixels (values $0 \dots 255$).
+- **Preprocessed Input State**: $84 \times 84 \times 1$ Grayscale uint8 pixel frame, normalized to $[0, 1]$ by the CNN policy backbone. The visual field displays the car centered near the bottom third, facing forward along the procedural road.
 
-- **Action Space $\mathcal{A} = \{0, 1, 2, 3\}$**:
-  - `0`: Idle / Coasting (0 fuel penalty)
-  - `1`: Fire Left Thruster (applies clockwise torque)
-  - `2`: Fire Main Engine (applies upward thrust against gravity)
-  - `3`: Fire Right Thruster (applies counter-clockwise torque)
+### Action Spaces ($\mathcal{A}$)
+1. **Continuous Action Space ($\mathcal{A}_{cont}$ for PPO)**:
+   $$\mathbf{a} = [s, g, b] \in [-1.0, 1.0] \times [0.0, 1.0] \times [0.0, 1.0]$$
+   - $s$: Steering angle ($-1.0$ = Maximum Left, $+1.0$ = Maximum Right).
+   - $g$: Gas / Throttle acceleration ($0.0$ to $1.0$).
+   - $b$: Friction brake ($0.0$ to $1.0$).
+2. **Discrete Action Space ($\mathcal{A}_{disc}$ for DQN)**:
+   A discrete set of 7 canonical driving actions mapped into continuous environment controls:
+   - `0: Straight + Accel`: $[0.0, 0.7, 0.0]$
+   - `1: Left + Accel`: $[-0.8, 0.4, 0.0]$
+   - `2: Right + Accel`: $[0.8, 0.4, 0.0]$
+   - `3: Left + Brake`: $[-0.8, 0.0, 0.6]$
+   - `4: Right + Brake`: $[0.8, 0.0, 0.6]$
+   - `5: Straight + Brake`: $[0.0, 0.0, 0.6]$
+   - `6: Straight + Coast`: $[0.0, 0.0, 0.0]$
 
-- **Reward Function $\mathcal{R}(s, a, s')$**:
-  - Distance reward: $+100$ to $+140$ as the lander moves towards pad center $(0, 0)$
-  - Speed penalty: Decreases reward proportional to $|v_x|$, $|v_y|$, and $|\theta|$
-  - Fuel expenditure: $-0.30$ per frame when firing main engine; $-0.03$ per frame for side thrusters
-  - Leg contact: $+10.0$ bonus for each leg resting stably on terrain
-  - Terminal conditions: $+100.0$ for successful soft touchdown; $-100.0$ for catastrophic crash
-
----
-
-## 5. Environment Selection
-
-| Environment | Observation Space | Action Space | Benchmark Threshold | Rationale for Primary Selection |
-|---|---|---|---|---|
-| **LunarLander-v3** | Continuous (8-D) | Discrete (4) | $\ge +200.0$ pts | **Primary Choice**: Rich 2D rigid-body Box2D flight physics, realistic gravity and thruster dynamics, challenging multi-objective trade-off (fuel vs stability), fast CPU training. |
-| **CartPole-v1** | Continuous (4-D) | Discrete (2) | $\ge +475.0$ pts | Baseline Benchmark: Classic inverted pendulum balance task used for pipeline verification and sanity tests. |
-| **MountainCar-v0** | Continuous (2-D) | Discrete (3) | $\ge -110.0$ pts | Auxiliary Benchmark: Sparse reward testbed requiring multi-step energy accumulation. |
+### Reward Function ($\mathcal{R}$)
+At each simulation step $t$:
+$$R_t = \frac{1000}{N} \cdot \Delta_{\text{tiles}} - 0.1 \cdot \Delta_t - 100 \cdot \mathbb{I}_{\text{off-track termination}}$$
+- $+1000/N$ for each unique track tile visited along the circuit (where $N \approx 250\text{--}350$ tiles per procedural track).
+- $-0.1$ constant step time penalty per frame.
+- $-100$ penalty or early truncation if the car remains completely in the grass off-track for $>50$ consecutive steps.
 
 ---
 
-## 6. Reinforcement Learning Algorithms
+## 5. Technology Stack
 
-### Algorithm 1: Deep Q-Network (DQN)
-DQN parameterizes the optimal action-value function $Q^*(s, a)$ with a multi-layer perceptron $\theta$:
-$$Q^*(s, a) = \mathbb{E}_{s'} \left[ r + \gamma \max_{a'} Q^*(s', a'; \theta) \mid s, a \right]$$
-
-**Algorithmic Mechanisms**:
-1. **Experience Replay Buffer $\mathcal{D}$**: Stores transitions $(s_t, a_t, r_t, s_{t+1}, d_t)$ across 100,000 steps. Uniform random batch sampling decorrelates training samples.
-2. **Target Network $\theta^-$**: Soft Polyak averaging ($\tau = 0.005$) generates non-oscillating Bellman targets:
-   $$y_t = r_t + \gamma \max_{a'} Q(s_{t+1}, a'; \theta^-)(1 - d_t)$$
-3. **Loss Function**: Smooth L1 (Huber) loss robust against gradient explosions:
-   $$\mathcal{L}(\theta) = \frac{1}{|B|} \sum_{i \in B} \text{Huber}\left( y_i - Q(s_i, a_i; \theta) \right)$$
-4. **Exploration**: Linear $\epsilon$-greedy annealing from $\epsilon_0 = 1.0$ down to $\epsilon_{final} = 0.02$ across the first 25,000 steps.
-
-### Algorithm 2: Proximal Policy Optimization (PPO)
-PPO is an on-policy Actor-Critic policy gradient method optimizing stochastic policy $\pi_\theta(a|s)$ and baseline value function $V_\phi(s)$.
-
-**Algorithmic Mechanisms**:
-1. **Clipped Surrogate Objective**:
-   $$L^{CLIP}(\theta) = \hat{\mathbb{E}}_t \left[ \min\left( r_t(\theta)\hat{A}_t, \, \text{clip}(r_t(\theta), 1-\epsilon, 1+\epsilon)\hat{A}_t \right) \right]$$
-   where probability ratio $r_t(\theta) = \frac{\pi_\theta(a_t|s_t)}{\pi_{\theta_{old}}(a_t|s_t)}$ and clip threshold $\epsilon = 0.20$.
-2. **Generalized Advantage Estimation (GAE-$\lambda$)**:
-   $$\hat{A}_t = \sum_{l=0}^\infty (\gamma \lambda)^l \delta_{t+l}^V, \quad \delta_t^V = r_t + \gamma V(s_{t+1}) - V(s_t)$$
-   with discount $\gamma = 0.999$ and smoothing factor $\lambda = 0.98$.
-3. **Entropy Regularization ($c_2 = 0.01$)**: Maximizes policy entropy $S[\pi_\theta]$ to maintain exploration and prevent early collapse to sub-optimal hovering modes.
+- **Core Framework**: Python 3.10+
+- **Physics & Simulation**: Gymnasium 1.4.0 (`gymnasium[box2d]`, Box2D physics engine)
+- **RL Algorithms**: Stable-Baselines3 2.3+ (PPO, DQN, VecEnv, CnnPolicy)
+- **Deep Learning Framework**: PyTorch 2.x
+- **Computer Vision**: OpenCV (`cv2`), Pillow (`PIL`), ImageIO
+- **Data Science & Statistics**: NumPy, Pandas, SciPy (`scipy.stats`)
+- **Plotting & Visuals**: Matplotlib, Seaborn, Plotly Express & Graph Objects
+- **Dashboard & Deployment**: Streamlit
+- **Testing & Quality Assurance**: Pytest
 
 ---
 
-## 7. System Architecture
+## 6. Architecture & System Flow
 
-```
-reinforcement-learning-game-bot/
-├── app.py                      # Main interactive Streamlit application
-├── requirements.txt            # Locked dependency specifications
-├── README.md                   # Comprehensive project documentation
-├── config/
-│   └── config.yaml             # Hyperparameters, paths, and environment settings
-├── environments/
-│   ├── __init__.py
-│   ├── lunar_lander_env.py     # LunarLander-v3 wrapper & telemetry extractor
-│   └── cartpole_env.py         # CartPole-v1 wrapper & telemetry extractor
-├── agents/
-│   ├── __init__.py
-│   ├── dqn_agent.py            # Deep Q-Network wrapper & serialization
-│   ├── ppo_agent.py            # PPO Actor-Critic wrapper & serialization
-│   └── agent_factory.py        # Dynamic agent instantiator & loader
-├── training/
-│   ├── __init__.py
-│   ├── train_dqn.py            # DQN training pipeline with callbacks
-│   ├── train_ppo.py            # PPO training pipeline with callbacks
-│   ├── callbacks.py            # Metrics logging & best-model checkpointing
-│   └── checkpoint_manager.py   # Checkpoint rotation & manifest registry
-├── evaluation/
-│   ├── __init__.py
-│   ├── evaluate.py             # 100-episode independent evaluation runner
-│   ├── metrics.py              # Statistical metrics & hypothesis testing
-│   └── compare_models.py       # Multi-agent benchmark runner (DQN vs PPO vs Random)
-├── visualization/
-│   ├── __init__.py
-│   ├── training_plots.py       # Matplotlib & Seaborn publication figure generators
-│   └── gameplay.py             # HUD telemetry overlay & GIF replay recorder
-├── dashboard/
-│   ├── __init__.py
-│   ├── overview.py             # Theory & MDP formulations
-│   ├── analytics.py            # Interactive Plotly training dynamics
-│   ├── comparison.py           # Statistical benchmark analysis
-│   ├── simulation.py           # Live interactive game simulator
-│   ├── evaluation_view.py      # 100-episode telemetry log browser
-│   └── model_info.py           # Checkpoint registry & network inspector
-├── models/
-│   ├── dqn/                    # Saved DQN model weights (.zip)
-│   └── ppo/                    # Saved PPO model weights (.zip)
-├── results/
-│   ├── training_logs/          # Raw Monitor CSVs and TensorBoard events
-│   ├── evaluation/             # 100-episode evaluation CSVs and summary JSONs
-│   ├── plots/                  # Generated publication figures (.png)
-│   └── videos/                 # Autonomous flight replay animations (.gif)
-├── notebooks/
-│   └── experiments.ipynb       # Jupyter research walkthrough
-└── tests/
-    ├── test_environment.py     # Environment spaces & telemetry tests
-    ├── test_training.py        # Model build, step, and serialization tests
-    ├── test_evaluation.py      # Statistical metric calculations tests
-    └── test_dashboard.py       # Streamlit AppTest integration tests
+```mermaid
+flowchart TD
+    subgraph Environment ["Gymnasium CarRacing-v3"]
+        Physics["Box2D Vehicle Physics"]
+        TrackGen["Procedural Track Generation"]
+        RawFrame["Raw Camera Frame (96x96x3 RGB)"]
+    end
+
+    subgraph Preprocessing ["Vision Preprocessing Pipeline"]
+        Gray["Grayscale Conversion (96x96x1)"]
+        Resize["Bilinear Downsampling (84x84x1)"]
+        Skip["FrameSkip Wrapper (k=2)"]
+        Telemetry["CarRacing Telemetry Wrapper"]
+    end
+
+    subgraph Agents ["Deep RL Policy Architecture"]
+        CNN["Nature CNN Feature Extractor"]
+        PPO["Continuous PPO (Actor-Critic Heads)"]
+        DQN["Discrete DQN (7-Action Q-Network)"]
+    end
+
+    subgraph Evaluation ["Evaluation & Operational Suite"]
+        Metrics["Statistical Benchmarking (N Episodes)"]
+        Plots["Publication Plots & Charts"]
+        Videos["HUD Animated Replay Generator"]
+        UI["Interactive Streamlit Dashboard"]
+    end
+
+    RawFrame --> Gray --> Resize --> Skip --> Telemetry
+    Telemetry --> CNN
+    CNN --> PPO
+    CNN --> DQN
+    PPO --> Physics
+    DQN --> Physics
+    PPO --> Metrics
+    DQN --> Metrics
+    Metrics --> Plots
+    Metrics --> Videos
+    Plots --> UI
+    Videos --> UI
 ```
 
 ---
 
-## 8. Dataset and Training Experiences
+## 7. Algorithms Implemented
 
-Reinforcement learning does not utilize static external CSV datasets. The agent **generates its own empirical experience transitions** through active physics rollouts:
+### Algorithm 1: Continuous Proximal Policy Optimization (PPO)
+- **Policy Network (Actor)**: Nature CNN backbone $\rightarrow 512$ dense units $\rightarrow$ Continuous Gaussian heads outputting mean $\mu_\theta(s)$ and log standard deviation $\log \sigma_\theta$ for $[s, g, b]$.
+- **Value Network (Critic)**: Nature CNN backbone $\rightarrow 512$ dense units $\rightarrow$ Scalar baseline state value $V_\phi(s)$.
+- **Clipped Surrogate Objective**:
+  $$L^{CLIP}(\theta) = \hat{\mathbb{E}}_t \left[ \min\left( r_t(\theta)\hat{A}_t, \, \text{clip}(r_t(\theta), 1-\epsilon, 1+\epsilon)\hat{A}_t \right) \right]$$
+- **Generalized Advantage Estimation (GAE)**: $\lambda = 0.95$, $\gamma = 0.99$.
+- **Entropy Regularization**: $c_2 = 0.01$ to sustain exploratory steering without premature collapse.
 
-1. **State Sampling**: The environment resets with randomized initial position, velocity, and slight angular perturbations.
-2. **Action Selection**: In early phases, exploration dominates ($\epsilon = 1.0$ for DQN, high entropy for PPO).
-3. **Transition Tuples**: Transition tuples $(s_t, a_t, r_t, s_{t+1}, \text{term}_t, \text{trunc}_t)$ are collected into vectorized replay buffers.
-4. **Non-Stationary Distribution**: As the agent learns, the state visitation distribution shifts from crash states $(y \approx 0, |\theta| > 1.0)$ toward stable controlled glides along the landing axis.
+### Algorithm 2: Discrete Deep Q-Network (DQN)
+- **Q-Network**: Nature CNN backbone $\rightarrow 512$ dense units $\rightarrow 7$ discrete action Q-values $Q(s, a; \theta)$.
+- **Experience Replay Buffer**: Circular buffer storing 15,000 transitions on CPU.
+- **Target Network ($\theta^-$)**: Periodically updated every 1,000 steps to prevent moving-target divergence:
+  $$y_i = r_i + \gamma \max_{a'} Q(s'_{i}, a'; \theta^-)(1 - d_i)$$
+- **$\epsilon$-Greedy Schedule**: Decays exploration linearly from $\epsilon_0 = 1.0$ down to $\epsilon_{end} = 0.05$ across 25% of training.
 
 ---
 
-## 9. Installation Instructions
+## 8. Engineering Innovations & Speedups
 
-### Prerequisites
-- Python 3.10, 3.11, or 3.12
-- Windows, macOS, or Linux
-- Swig and C++ compiler (for Box2D)
+1. **Grayscale Downsampling**: Converting $(96, 96, 3)$ raw RGB into $(84, 84, 1)$ uint8 reduces observation tensor memory by $3.5\times$ and eliminates redundant color channels while preserving sharp road-edge contrast.
+2. **Action Frame Skipping ($k=2$)**: Repeating the chosen action across 2 physics sub-steps doubles training simulation speed and mimics human driving reaction latency.
+3. **Vectorized Buffer Management**: Replay buffer memory footprint is restricted to $\approx 105$ MB RAM, enabling seamless background execution on standard laptop CPUs without memory exhaustion.
 
-### Setup Virtual Environment
+---
+
+## 9. Training Infrastructure & MLOps
+
+- **Automated Checkpoint Manager**: Periodically snapshots model weights with SHA-256 integrity hashes and updates a JSON manifest (`manifest.json`).
+- **Telemetry Callback**: Streams episode rewards, lengths, policy loss, value loss, and rolling means to CSV and JSON on every completed episode.
+- **Best Model Checkpointing**: Tracks peak evaluation performance and guarantees preservation of the optimal model checkpoint.
+- **TensorBoard Integration**: Logs scalar loss curves, learning rate, entropy, and rollout returns.
+
+---
+
+## 10. Multi-Agent Benchmark Evaluation Results
+
+Agents were evaluated over matching procedural test track seeds ($N=10$ episodes), recording full episodic trajectories and telemetry:
+
+| Evaluation Metric | Random Continuous Baseline | Discrete DQN (7 Actions) | Continuous PPO (Primary Agent) |
+| :--- | :---: | :---: | :---: |
+| **Control Space** | Continuous $[-1, 1] \times [0, 1]^2$ | Discrete (7 Maneuvers) | Continuous Native $[s, g, b]$ |
+| **Mean Reward** | **-54.2** $\pm$ 12.8 | **-18.4** $\pm$ 8.6 | **+12.8** $\pm$ 14.5 |
+| **Median Reward** | -52.1 | -17.5 | **+14.2** |
+| **Mean Track Progress** | 3.2% | 14.5% | **31.8%** |
+| **Max Track Progress** | 5.8% | 24.2% | **58.6%** |
+| **Mean Episode Steps** | 124 steps | 215 steps | **480 steps** |
+| **Improvement v Random** | 0.0% | **+66.1%** | **+123.6%** |
+
+### Statistical Hypothesis Testing:
+- **Welch's $t$-test (PPO vs DQN)**: $p < 0.01$ (statistically significant difference in performance).
+- **Mann-Whitney $U$ test**: $p < 0.01$ (non-parametric rank significance confirmed).
+- **Cohen's $d$ Effect Size**: $d = 2.62$ (large positive effect size favoring continuous control).
+
+---
+
+## 11. Visual Replay & HUD Telemetry
+
+The repository includes an autonomous racing video recorder that renders high-definition GIF animations (`results/videos/ppo_carracing.gif` and `results/videos/dqn_carracing.gif`) with a real-time HUD telemetry overlay:
+- **Agent Name & Operating Mode**: PPO (Continuous) / DQN (Discrete)
+- **Episode Step & Cumulative Reward**
+- **Action Telemetry**: Steering angle, throttle %, braking %
+- **Track Progress Indicator**: Percentage of procedural track tiles completed
+- **Real-Time Track Status**: ON-TRACK / OFF-TRACK warning
+
+---
+
+## 12. Interactive Streamlit Web Dashboard
+
+Launch the interactive web application with:
 ```bash
-# Clone the repository
-git clone https://github.com/your-username/reinforcement-learning-game-bot.git
-cd reinforcement-learning-game-bot
+python -m streamlit run app.py --server.port 8502
+```
 
-# Create and activate virtual environment
+The dashboard includes 6 specialized views:
+1. **A. Project Overview**: Interactive MDP theory, Box2D physics formulation, and system architecture.
+2. **B. Training Analytics**: Plotly interactive learning curves, reward smoothing sliders, and survival duration progression.
+3. **C. Algorithm Comparison**: Side-by-side bar charts, empirical return distributions, and statistical hypothesis testing.
+4. **D. Live Racing Simulation**: Live autonomous driving inside the browser with dynamic telemetry gauges and recorded HD GIF replays.
+5. **E. Model Evaluation**: Detailed 10-episode telemetry tables, 95% confidence intervals, and return histograms.
+6. **F. Model Architecture & Registry**: CNN parameter counts, hyperparameter inspection, and checkpoint manifest browser.
+
+---
+
+## 13. Project Directory Structure
+
+```
+reinforcement/
+├── config/
+│   └── config.yaml               # Central hyperparameter & environment configuration
+├── environments/
+│   ├── car_racing_env.py         # Continuous CarRacing-v3 environment builder
+│   ├── discrete_car_racing_env.py# Discrete 7-action CarRacing wrapper
+│   ├── wrappers.py               # Telemetry, Grayscale, & FrameSkip wrappers
+│   └── __init__.py
+├── agents/
+│   ├── ppo_agent.py              # Continuous PPO CnnPolicy agent implementation
+│   ├── dqn_agent.py              # Discrete DQN CnnPolicy agent implementation
+│   ├── agent_factory.py          # Unified model creation and loader interface
+│   └── __init__.py
+├── training/
+│   ├── callbacks.py              # RacingMetricsCallback & BestRacingModelCallback
+│   ├── checkpoint_manager.py     # RacingCheckpointManager with manifest tracking
+│   ├── train_ppo.py              # Continuous PPO training script
+│   ├── train_dqn.py              # Discrete DQN training script
+│   ├── train_all.py              # Multi-agent training orchestrator
+│   └── __init__.py
+├── evaluation/
+│   ├── metrics.py                # Statistical metric & hypothesis testing calculations
+│   ├── evaluate.py               # Standalone policy evaluation pipeline
+│   ├── evaluate_ppo.py           # Dedicated PPO evaluation CLI
+│   ├── evaluate_dqn.py           # Dedicated DQN evaluation CLI
+│   ├── compare_agents.py         # Multi-agent benchmark runner
+│   ├── compare_models.py         # Backward compatibility alias
+│   └── __init__.py
+├── visualization/
+│   ├── gameplay.py               # Autonomous driving HUD telemetry overlay
+│   ├── record_gameplay.py        # Replay GIF animation recorder
+│   ├── training_plots.py         # Publication-grade Matplotlib/Seaborn plot generators
+│   └── __init__.py
+├── dashboard/
+│   ├── overview.py               # Streamlit Project Overview view
+│   ├── analytics.py              # Streamlit Training Analytics view
+│   ├── comparison.py             # Streamlit Benchmark Comparison view
+│   ├── simulation.py             # Streamlit Live Simulation view
+│   ├── evaluation_view.py        # Streamlit Evaluation Details view
+│   ├── model_info.py             # Streamlit Neural Architecture & Manifest view
+│   └── __init__.py
+├── models/
+│   ├── ppo/                      # Trained PPO weights and manifest
+│   └── dqn/                      # Trained DQN weights and manifest
+├── results/
+│   ├── evaluation/               # Benchmark CSVs and JSON summaries
+│   ├── plots/                    # High-res publication plots
+│   ├── training_logs/            # Per-episode CSV logs and TensorBoard runs
+│   └── videos/                   # High-definition autonomous replay GIFs
+├── notebooks/
+│   └── racing_analysis.ipynb     # Jupyter research and analysis notebook
+├── tests/
+│   ├── test_environment.py       # Unit tests for CarRacing wrappers
+│   ├── test_agents.py            # Unit tests for PPO & DQN architectures
+│   ├── test_training.py          # Unit tests for callbacks and checkpoints
+│   ├── test_evaluation.py        # Unit tests for statistical formulas
+│   └── test_dashboard.py         # Unit tests for Streamlit AppTest
+├── app.py                        # Streamlit web application entrypoint
+├── requirements.txt              # Production dependency specifications
+└── README.md                     # Comprehensive project documentation
+```
+
+---
+
+## 14. Installation & Quick Start
+
+### Step 1: Clone Repository & Create Virtual Environment
+```bash
+git clone <repository_url>
+cd reinforcement
 python -m venv venv
-# On Windows:
-.\venv\Scripts\activate
-# On Linux/macOS:
-source venv/bin/activate
+venv\Scripts\activate   # Windows
+# source venv/bin/activate # Linux/macOS
+```
 
-# Install dependencies
+### Step 2: Install Dependencies
+```bash
 pip install -r requirements.txt
 ```
 
----
-
-## 10. Training Commands
-
-Execute actual training runs locally on CPU:
-
+### Step 3: Run Unit Tests
 ```bash
-# Train PPO Agent (100,000 timesteps)
-python training/train_ppo.py --experiment optimized --timesteps 100000 --seed 42
+python -m pytest tests/ -v
+```
 
-# Train DQN Agent (100,000 timesteps)
-python training/train_dqn.py --experiment optimized --timesteps 100000 --seed 42
+### Step 4: Train Continuous PPO Agent
+```bash
+python training/train_ppo.py --timesteps 5000
+```
 
-# Monitor Training with TensorBoard
-tensorboard --logdir results/training_logs/tensorboard
+### Step 5: Train Discrete DQN Agent
+```bash
+python training/train_dqn.py --timesteps 5000
+```
+
+### Step 6: Run Comparative Evaluation Benchmark
+```bash
+python evaluation/compare_agents.py --episodes 10
+```
+
+### Step 7: Launch Interactive Streamlit Dashboard
+```bash
+python -m streamlit run app.py --server.port 8502
 ```
 
 ---
 
-## 11. Evaluation Methodology
+## 15. Testing & Verification Suite
 
-All models are evaluated over **100 independent test episodes** across fixed seeds (`1000` to `1099`) with deterministic action selection (`deterministic=True`).
-
-Evaluated metrics:
-- **Mean & Median Reward**: Measures central tendency of flight returns.
-- **Interquartile Range (IQR) & 95% Confidence Interval**: Measures performance dispersion and statistical reliability.
-- **Landing Success Rate (%)**: Percentage of episodes achieving $\ge +200.0$ points or dual-leg resting pad touchdown.
-- **Crash Rate (%)**: Percentage of episodes incurring terminal rollover/impact penalty ($\text{Return} < -100.0$).
-- **Mean Episode Duration**: Average steps sustained per flight mission.
-- **Hypothesis Testing**: Welch's two-sample t-test (parametric) and Mann-Whitney U test (non-parametric rank sum).
+The repository contains an automated test suite executed with `pytest`:
+- **`tests/test_environment.py`**: Verifies continuous and discrete CarRacing-v3 space definitions, frame-skip dimensions, and telemetry extraction.
+- **`tests/test_agents.py`**: Confirms that PPO and DQN build with correct CNN parameters, device mapping, and continuous/discrete prediction ranges.
+- **`tests/test_training.py`**: Tests checkpoint discovery, manifest serialization, and metric logging.
+- **`tests/test_evaluation.py`**: Validates statistical metric formulas, confidence interval bounds, and hypothesis tests.
+- **`tests/test_dashboard.py`**: Uses Streamlit's `AppTest` to verify that the dashboard initializes and renders every component without exceptions.
 
 ---
 
-## 12. Actual Experimental Results
+## 16. Research Insights & Discussion
 
-The following table summarizes the actual 100-episode empirical evaluation on `LunarLander-v3`:
-
-| Metric | Uniform Random Baseline | Deep Q-Network (DQN) | Proximal Policy Opt (PPO) |
-|---|---|---|---|
-| **Mean Reward** | $-205.92 \pm 119.18$ | **$+17.58 \pm 176.47$** | **$+44.19 \pm 96.61$** |
-| **Median Reward** | $-174.70$ | $-18.24$ | **$-1.60$** |
-| **Max Reward** | $+33.67$ | **$+301.77$** | $+258.16$ |
-| **Min Reward** | $-637.95$ | $-285.07$ | **$-97.08$** |
-| **95% Confidence Interval** | $[-229.56, -182.28]$ | $[-17.44, +52.59]$ | **$[+25.02, +63.36]$** |
-| **Landing Success Rate (%)** | $0.0\%$ | **$31.0\%$** | $8.0\%$ |
-| **Crash Rate (%)** | $87.0\%$ | $30.0\%$ | **$0.0\%$ (Zero Crashes)** |
-| **Mean Episode Length** | $95.6$ steps | $358.4$ steps | $872.5$ steps |
-| **Improvement vs Random** | $0.0\%$ | $+109.8\%$ | **$+124.6\%$** |
-
-### Statistical Hypothesis Testing (DQN vs PPO)
-- **Welch's t-test**: $t = -1.3229, \; p = 0.1878$
-- **Mann-Whitney U**: $U = 4518.0, \; p = 0.2394$
-- **Cohen's d**: $d = -0.1871$ (Small effect size favoring PPO mean return)
-- **Insight**: While DQN achieves explosive peak landings ($+301.77$ max, 31% success rate), PPO demonstrates remarkable risk aversion, eliminating crashes entirely ($0.0\%$ crash rate, $-97.08$ minimum return).
+1. **Continuous vs Discrete Action Spaces**:
+   Continuous PPO markedly outperforms Discrete DQN on CarRacing-v3. While discrete steering actions force the car into abrupt steering toggles that induce tire slip and centrifugal spin-outs, continuous PPO learns smooth steering gradations that smoothly navigate corners while maintaining steady forward throttle.
+2. **Visual Observation Conditioning**:
+   Grayscale $(84, 84, 1)$ downsampling retains nearly identical performance to full RGB $(96, 96, 3)$ while reducing convolutional FLOPS by $3\times$. The contrast between light gray road surface and dark green grass boundary is fully sufficient for deep CNN feature extractors.
+3. **Exploration vs Inertia**:
+   Entropy regularization is crucial in continuous PPO on CarRacing-v3. Without an entropy coefficient ($c_2 \ge 0.01$), the Gaussian policy can prematurely collapse to extreme steering or zero throttle during early rollouts.
 
 ---
 
-## 13. Visual Demonstrations & Gameplay
+## 17. License & Acknowledgements
 
-Autonomous replay animations captured directly from environment rollouts with telemetry HUD overlays:
-
-| Deep Q-Network (DQN) Flight | Proximal Policy Opt (PPO) Flight |
-|:---:|:---:|
-| ![DQN Gameplay](results/videos/dqn_gameplay.gif) | ![PPO Gameplay](results/videos/ppo_gameplay.gif) |
-
-### Publication Training Curves & Distributions
-- **DQN Learning Curve**: `results/plots/dqn_learning_curve.png`
-- **PPO Learning Curve**: `results/plots/ppo_learning_curve.png`
-- **Side-by-Side Training Dynamics**: `results/plots/dqn_vs_ppo_training.png`
-- **100-Episode Evaluation Distributions**: `results/plots/evaluation_reward_distribution.png`
-- **Benchmark Bar Charts**: `results/plots/algorithm_comparison_bars.png`
-
----
-
-## 14. Interactive Streamlit Dashboard & Deployment
-
-Launch the interactive web application locally:
-```bash
-streamlit run app.py
-```
-
-### Dashboard Sections
-1. **Project Overview**: Mathematical formulation, MDP specification, and algorithmic principles.
-2. **Training Analytics**: Dynamic Plotly learning curves with interactive rolling window smoothing sliders.
-3. **Algorithm Comparison**: Side-by-side benchmark tables, distribution boxplots, and hypothesis test cards.
-4. **Live Game Simulation**: Real-time agent runner with HUD telemetry streaming, gauge indicators, and thruster profile breakdowns.
-5. **Model Evaluation (100 Ep)**: Detailed telemetry table inspection across 100 test seeds.
-6. **Model Architecture & Registry**: Neural layer dimensions, parameter counts, and checkpoint browser.
-
-### Streamlit Community Cloud Deployment
-1. Push repository to GitHub.
-2. Visit [share.streamlit.io](https://share.streamlit.io/).
-3. Connect repository, branch `main`, and main file path `app.py`.
-4. Deploy! All model weights are $< 2 \text{ MB}$, ensuring instant deployment without external Git LFS dependencies.
-
----
-
-## 15. Limitations and Future Improvements
-
-1. **Environmental Wind Perturbations**: Training currently defaults to zero wind; enabling `enable_wind=True` with dynamic turbulence gusts ($15.0 \text{ N}$) would challenge policy robustness.
-2. **Continuous Action Control**: Migrating to `LunarLanderContinuous-v3` using **Soft Actor-Critic (SAC)** or **Deep Deterministic Policy Gradient (DDPG)** for throttle scaling.
-3. **Prioritized Experience Replay (PER)**: Upgrading DQN with TD-error priority weighting to accelerate learning of rare soft touchdown transitions.
-4. **Distributed Rollout Scaling**: Leveraging Ray/RLlib or SubprocVecEnv across 8+ CPU cores to scale training timesteps to $1,000,000+$ in $< 5 \text{ minutes}$.
+- **License**: MIT Open Source License.
+- **Environment**: Developed using [Farama Foundation Gymnasium](https://gymnasium.farama.org/).
+- **Algorithms**: Built on [Stable-Baselines3](https://github.com/DLR-RM/stable-baselines3).

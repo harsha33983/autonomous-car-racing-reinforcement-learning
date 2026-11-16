@@ -1,0 +1,28 @@
+{
+  "prefix": "dqn",
+  "checkpoint_count": 0,
+  "checkpoints": [],
+  "latest_checkpoint": null,
+  "metadata": {
+    "algorithm": "DQN",
+    "timesteps": 3000,
+    "seed": 42,
+    "final_model": "models/dqn\\dqn_carracing_final.zip",
+    "best_model": "models/dqn\\dqn_carracing_best.zip",
+    "hyperparameters": {
+      "learning_rate": 0.00025,
+      "buffer_size": 15000,
+      "learning_starts": 1000,
+      "batch_size": 64,
+      "tau": 1.0,
+      "gamma": 0.99,
+      "train_freq": 4,
+      "gradient_steps": 1,
+      "target_update_interval": 1000,
+      "exploration_initial_eps": 1.0,
+      "exploration_final_eps": 0.05,
+      "exploration_fraction": 0.25,
+      "max_grad_norm": 10.0
+    }
+  }
+}

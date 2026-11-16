@@ -1,0 +1,3 @@
+# Autonomous Car Racing AI Configuration
+# Re-exported from config/config.yaml for root discovery
+import: "config/config.yaml"

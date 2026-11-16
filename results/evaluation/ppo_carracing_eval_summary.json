@@ -1,0 +1,21 @@
+{
+  "n_episodes": 5,
+  "mean_reward": 126.61,
+  "std_reward": 56.22,
+  "median_reward": 101.24,
+  "min_reward": 68.33,
+  "max_reward": 210.38,
+  "iqr_reward": 56.28,
+  "ci_95_low": 56.81,
+  "ci_95_high": 196.41,
+  "mean_episode_length": 126.0,
+  "median_episode_length": 125.0,
+  "std_episode_length": 15.76,
+  "mean_track_progress_percent": 14.3,
+  "max_track_progress_percent": 24.0,
+  "track_completion_rate_percent": 0.0,
+  "improvement_over_random_percent": 353.22,
+  "model_path": "C:\\Users\\Harsha\\Downloads\\reinforcement\\models\\ppo\\ppo_carracing_final.zip",
+  "csv_path": "C:\\Users\\Harsha\\Downloads\\reinforcement\\results\\evaluation\\ppo_carracing_eval_5eps.csv",
+  "algorithm": "PPO"
+}

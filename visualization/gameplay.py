@@ -1,84 +1,119 @@
 """
-Autonomous Gameplay Demonstration & Video/GIF Recording
-=======================================================
-Executes trained agent in rendered Gymnasium environment, overlays real-time HUD telemetry,
-and saves high-resolution replay animations (GIF / MP4).
+Autonomous Racing Gameplay Demonstration & Video/GIF Recording
+=============================================================
+Executes trained autonomous racing agent in rendered Gymnasium CarRacing-v3,
+overlays real-time racing HUD telemetry (Steering, Gas, Brake, Track Progress, Score),
+and exports high-resolution replay animations (GIF / MP4).
 """
 
 import os
 import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 import argparse
-from typing import List, Optional, Tuple, Dict, Any
+from typing import List, Optional, Tuple, Dict, Any, Union
 import numpy as np
 import imageio
 from PIL import Image, ImageDraw, ImageFont
 
-from environments.lunar_lander_env import make_lunar_lander_env, ACTION_MEANINGS
-from agents.agent_factory import load_agent
+from environments.car_racing_env import make_car_racing_env
+from environments.discrete_car_racing_env import make_discrete_car_racing_env, DISCRETE_ACTIONS
+from agents.agent_factory import load_racing_agent
 
 
-def overlay_telemetry(
+def overlay_racing_telemetry(
     frame: np.ndarray,
     algorithm: str,
-    episode: int,
     step: int,
-    action: int,
-    step_reward: float,
+    action: Union[int, np.ndarray, list],
     total_reward: float,
     telemetry: Optional[Dict[str, Any]] = None,
 ) -> np.ndarray:
     """
-    Overlay professional HUD telemetry on RGB environment frame.
+    Overlay autonomous racing HUD telemetry on (400, 600, 3) CarRacing frame.
     """
     img = Image.fromarray(frame)
-    draw = ImageDraw.Draw(img)
-
-    # Semi-transparent top HUD banner
-    banner_height = 56
+    
+    # Semi-transparent HUD overlay banner
+    banner_height = 54
     overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
     overlay_draw = ImageDraw.Draw(overlay)
-    overlay_draw.rectangle([0, 0, img.width, banner_height], fill=(15, 23, 42, 220))  # Slate dark
+    overlay_draw.rectangle([0, 0, img.width, banner_height], fill=(15, 23, 42, 225))  # Dark Slate
     img = Image.alpha_composite(img.convert("RGBA"), overlay)
     draw = ImageDraw.Draw(img)
 
-    # Status text
-    algo_color = "#38BDF8" if "dqn" in algorithm.lower() else "#34D399"
-    act_str = ACTION_MEANINGS.get(action, f"Action {action}")
+    # Format action values
+    algo_lower = algorithm.lower()
+    if isinstance(action, (int, np.integer)):
+        act_idx = int(action)
+        act_def = DISCRETE_ACTIONS.get(act_idx, [0.0, 0.0, 0.0])
+        steer, gas, brake = act_def[0], act_def[1], act_def[2]
+        act_str = f"DQN Act {act_idx} [Steer:{steer:+.1f} Gas:{gas:.1f} Brk:{brake:.1f}]"
+    else:
+        act_arr = np.array(action).flatten()
+        steer = float(act_arr[0]) if len(act_arr) > 0 else 0.0
+        gas = float(act_arr[1]) if len(act_arr) > 1 else 0.0
+        brake = float(act_arr[2]) if len(act_arr) > 2 else 0.0
+        act_str = f"Steer: {steer:+.2f} | Gas: {gas:.2f} | Brake: {brake:.2f}"
 
-    # Top line info
-    draw.text((12, 6), f"AGENT: {algorithm.upper()}", fill=algo_color)
-    draw.text((180, 6), f"EP: {episode}", fill="#E2E8F0")
-    draw.text((260, 6), f"STEP: {step}", fill="#E2E8F0")
+    algo_color = "#38BDF8" if "dqn" in algo_lower else "#34D399"
     rew_color = "#22C55E" if total_reward >= 0 else "#EF4444"
-    draw.text((370, 6), f"SCORE: {total_reward:+.1f}", fill=rew_color)
 
-    # Second line info
-    draw.text((12, 28), f"ACTION: {act_str}", fill="#FCD34D")
+    # Row 1: Agent Name, Step, Reward Score
+    draw.text((12, 6), f"AGENT: {algorithm.upper()}", fill=algo_color)
+    draw.text((210, 6), f"STEP: {step}", fill="#E2E8F0")
+    draw.text((320, 6), f"REWARD: {total_reward:+.1f}", fill=rew_color)
+
+    # Row 2: Action details and track progress
+    draw.text((12, 28), f"ACT: {act_str}", fill="#FCD34D")
+
     if telemetry:
-        vx = telemetry.get("linear_velocity_x", 0.0)
-        vy = telemetry.get("linear_velocity_y", 0.0)
-        left_c = int(telemetry.get("left_leg_contact", 0))
-        right_c = int(telemetry.get("right_leg_contact", 0))
-        draw.text((330, 28), f"Vx:{vx:+.2f} Vy:{vy:+.2f} Legs:[{left_c},{right_c}]", fill="#94A3B8")
+        progress = float(telemetry.get("track_progress", 0.0))
+        tiles = int(telemetry.get("tiles_visited", 0))
+        off_track = int(telemetry.get("off_track_count", 0))
+        prog_color = "#38BDF8" if progress > 50 else "#F59E0B"
+        draw.text((370, 28), f"PROGRESS: {progress:.1f}% ({tiles} tiles)", fill=prog_color)
+        if off_track > 0:
+            draw.text((515, 6), "OFF-TRACK", fill="#EF4444")
+        else:
+            draw.text((515, 6), "ON-TRACK", fill="#10B981")
 
     return np.array(img.convert("RGB"))
 
 
-def record_autonomous_gameplay(
+def record_autonomous_racing(
     algorithm: str,
     model_path: str,
     output_gif_path: str,
     seed: int = 1042,
-    fps: int = 30,
-    max_steps: int = 1000,
+    fps: int = 25,
+    max_steps: int = 600,
+    grayscale: bool = True,
+    frame_skip: int = 2,
+    frame_subsample: int = 2,
 ) -> Tuple[float, int, List[np.ndarray]]:
     """
-    Play an autonomous episode, overlay HUD telemetry, and write animated GIF.
+    Simulate an autonomous racing episode with render frames, overlay HUD, and save GIF.
     """
     os.makedirs(os.path.dirname(os.path.abspath(output_gif_path)), exist_ok=True)
-    env = make_lunar_lander_env(seed=seed, render_mode="rgb_array")
-    agent = load_agent(algorithm, model_path, env=env)
+    algo_lower = algorithm.lower()
+
+    if algo_lower == "dqn":
+        env = make_discrete_car_racing_env(
+            seed=seed,
+            grayscale=grayscale,
+            frame_skip=frame_skip,
+            render_mode="rgb_array",
+        )
+    else:
+        env = make_car_racing_env(
+            continuous=True,
+            seed=seed,
+            grayscale=grayscale,
+            frame_skip=frame_skip,
+            render_mode="rgb_array",
+        )
+
+    agent = load_racing_agent(algorithm, model_path, env=env)
 
     obs, info = env.reset(seed=seed)
     done = False
@@ -87,51 +122,59 @@ def record_autonomous_gameplay(
     total_reward = 0.0
     frames = []
 
-    print(f"[*] Simulating autonomous episode for {algorithm.upper()} (Seed={seed})...")
+    print(f"[*] Simulating autonomous racing for {algorithm.upper()} (Seed={seed})...")
 
+    # Initial frame
     initial_frame = env.render()
     if initial_frame is not None:
-        annotated = overlay_telemetry(
-            initial_frame, algorithm, 1, step, 0, 0.0, total_reward, info.get("telemetry")
+        annotated = overlay_racing_telemetry(
+            initial_frame, algorithm, step, 0 if algo_lower == "dqn" else [0.0, 0.0, 0.0],
+            total_reward, info.get("telemetry")
         )
         frames.append(annotated)
 
+    step_counter = 0
     while not (done or truncated) and step < max_steps:
         action, _ = agent.predict(obs, deterministic=True)
         obs, reward, done, truncated, info = env.step(action)
+        total_reward += float(reward)
         step += 1
-        total_reward += reward
+        step_counter += 1
 
-        raw_frame = env.render()
-        if raw_frame is not None:
-            annotated = overlay_telemetry(
-                raw_frame, algorithm, 1, step, action, reward, total_reward, info.get("telemetry")
-            )
-            frames.append(annotated)
+        if step_counter % frame_subsample == 0:
+            frame = env.render()
+            if frame is not None:
+                annotated = overlay_racing_telemetry(
+                    frame, algorithm, step, action, total_reward, info.get("telemetry")
+                )
+                frames.append(annotated)
 
     env.close()
 
-    # Save GIF
-    print(f"[*] Rendering {len(frames)} frames to GIF: {output_gif_path} (FPS={fps})")
-    imageio.mimsave(output_gif_path, frames, fps=fps, loop=0)
-    print(f"[+] Saved gameplay animation! Final Score: {total_reward:.2f} | Steps: {step}")
+    # Save animation
+    if frames:
+        print(f"[*] Compiling {len(frames)} frames into animation: {output_gif_path} ...")
+        # Ensure sizes are consistent
+        imageio.mimsave(output_gif_path, frames, fps=fps, loop=0)
+        file_size_mb = os.path.getsize(output_gif_path) / (1024 * 1024)
+        print(f"[+] Successfully exported {output_gif_path} ({file_size_mb:.2f} MB)")
 
     return total_reward, step, frames
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Record Autonomous Gameplay Demonstration")
-    parser.add_argument("--algo", type=str, required=True, choices=["dqn", "ppo"])
-    parser.add_argument("--model", type=str, required=True, help="Model path (.zip)")
-    parser.add_argument("--output", type=str, default="results/videos/gameplay.gif")
+    parser = argparse.ArgumentParser(description="Record Autonomous Racing Gameplay")
+    parser.add_argument("--algo", type=str, default="ppo", choices=["ppo", "dqn"])
+    parser.add_argument("--model", type=str, required=True, help="Path to saved agent model (.zip)")
+    parser.add_argument("--output", type=str, default="results/videos/autonomous_racing.gif")
     parser.add_argument("--seed", type=int, default=1042)
-    parser.add_argument("--fps", type=int, default=30)
+    parser.add_argument("--max_steps", type=int, default=500)
     args = parser.parse_args()
 
-    record_autonomous_gameplay(
+    record_autonomous_racing(
         algorithm=args.algo,
         model_path=args.model,
         output_gif_path=args.output,
         seed=args.seed,
-        fps=args.fps,
+        max_steps=args.max_steps,
     )

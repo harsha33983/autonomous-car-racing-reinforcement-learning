@@ -1,31 +1,23 @@
 """
-Evaluation Metrics
-==================
-Statistical computations for reinforcement learning policy evaluation.
+Evaluation Metrics for Autonomous Car Racing
+============================================
+Statistical computations for autonomous racing policy evaluation.
 """
 
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Optional
 import numpy as np
 from scipy import stats
 
 
-def compute_rl_metrics(
+def compute_racing_metrics(
     rewards: List[float],
     lengths: List[int],
-    success_threshold: float = 200.0,
-    random_baseline_mean: float = -180.0,
+    track_progresses: Optional[List[float]] = None,
+    completion_threshold: float = 800.0,
+    random_baseline_mean: float = -50.0,
 ) -> Dict[str, Any]:
     """
-    Calculate comprehensive statistical metrics from evaluation episodes.
-
-    Args:
-        rewards: List of cumulative episodic rewards
-        lengths: List of episode lengths (steps)
-        success_threshold: Threshold reward for task success
-        random_baseline_mean: Benchmark random agent reward for relative improvement
-
-    Returns:
-        Dictionary of formatted statistics
+    Calculate comprehensive statistical metrics from racing evaluation episodes.
     """
     rewards_arr = np.array(rewards, dtype=np.float64)
     lengths_arr = np.array(lengths, dtype=np.float64)
@@ -41,7 +33,7 @@ def compute_rl_metrics(
     max_rew = float(np.max(rewards_arr))
     iqr_rew = float(stats.iqr(rewards_arr)) if n_episodes > 1 else 0.0
 
-    # 95% Confidence interval for mean reward
+    # 95% Confidence interval
     if n_episodes > 1 and std_rew > 0:
         se = std_rew / np.sqrt(n_episodes)
         ci_95 = stats.t.interval(0.95, df=n_episodes - 1, loc=mean_rew, scale=se)
@@ -49,15 +41,16 @@ def compute_rl_metrics(
     else:
         ci_low, ci_high = mean_rew, mean_rew
 
-    # Success rate
-    successes = (rewards_arr >= success_threshold)
-    success_rate = float(np.mean(successes)) * 100.0
+    # Track progress and completion
+    progress_arr = np.array(track_progresses, dtype=np.float64) if track_progresses else np.zeros_like(rewards_arr)
+    mean_progress = float(np.mean(progress_arr)) if len(progress_arr) > 0 else 0.0
+    max_progress = float(np.max(progress_arr)) if len(progress_arr) > 0 else 0.0
 
-    # Crash / severe penalty rate (reward < -100)
-    crashes = (rewards_arr < -100.0)
-    crash_rate = float(np.mean(crashes)) * 100.0
+    # Lap completion rate
+    completions = (rewards_arr >= completion_threshold) | (progress_arr >= 90.0)
+    completion_rate = float(np.mean(completions)) * 100.0
 
-    # Length statistics
+    # Episode length statistics
     mean_len = float(np.mean(lengths_arr))
     median_len = float(np.median(lengths_arr))
     std_len = float(np.std(lengths_arr, ddof=1)) if n_episodes > 1 else 0.0
@@ -78,31 +71,26 @@ def compute_rl_metrics(
         "mean_episode_length": round(mean_len, 2),
         "median_episode_length": round(median_len, 2),
         "std_episode_length": round(std_len, 2),
-        "success_rate_percent": round(success_rate, 2),
-        "crash_rate_percent": round(crash_rate, 2),
+        "mean_track_progress_percent": round(mean_progress, 1),
+        "max_track_progress_percent": round(max_progress, 1),
+        "track_completion_rate_percent": round(completion_rate, 1),
         "improvement_over_random_percent": round(improvement, 2),
     }
 
 
-def compare_two_distributions(
+def compare_racing_distributions(
     rewards_a: List[float],
     rewards_b: List[float],
-    label_a: str = "DQN",
-    label_b: str = "PPO",
+    label_a: str = "PPO",
+    label_b: str = "DQN",
 ) -> Dict[str, Any]:
-    """
-    Perform statistical significance testing between two agent reward distributions.
-    """
+    """Perform statistical hypothesis testing between two racing agents."""
     arr_a = np.array(rewards_a)
     arr_b = np.array(rewards_b)
 
-    # Welch's two-sample t-test (assumes unequal variances)
     t_stat, p_val_t = stats.ttest_ind(arr_a, arr_b, equal_var=False)
-
-    # Mann-Whitney U test (non-parametric rank-sum test)
     u_stat, p_val_u = stats.mannwhitneyu(arr_a, arr_b, alternative="two-sided")
 
-    # Cohen's d effect size
     pooled_std = np.sqrt(((len(arr_a) - 1) * np.var(arr_a, ddof=1) + (len(arr_b) - 1) * np.var(arr_b, ddof=1)) / (len(arr_a) + len(arr_b) - 2))
     cohen_d = (np.mean(arr_a) - np.mean(arr_b)) / (pooled_std + 1e-8)
 
@@ -115,9 +103,13 @@ def compare_two_distributions(
         "mean_b": round(float(np.mean(arr_b)), 2),
         "welch_t_statistic": round(float(t_stat), 4),
         "welch_p_value": float(p_val_t),
+        "p_value_welch_t": float(p_val_t),
         "statistically_significant_005": bool(p_val_t < 0.05),
+        "is_significant_at_05": bool(p_val_t < 0.05),
         "mann_whitney_u": round(float(u_stat), 2),
         "mann_whitney_p_value": float(p_val_u),
+        "p_value_mann_whitney": float(p_val_u),
         "cohens_d": round(float(cohen_d), 4),
         "higher_mean_performer": winner,
+        "winner": winner,
     }

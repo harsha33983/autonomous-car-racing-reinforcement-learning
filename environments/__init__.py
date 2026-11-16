@@ -1,28 +1,32 @@
-"""Environments module."""
-from environments.lunar_lander_env import (
-    make_lunar_lander_env,
-    make_vectorized_lunar_lander,
-    LunarLanderTelemetryWrapper,
-    ACTION_MEANINGS as LUNAR_LANDER_ACTIONS,
-    OBSERVATION_FEATURES as LUNAR_LANDER_OBS_FEATURES,
+"""Environments module for Autonomous Car Racing."""
+from environments.car_racing_env import (
+    make_car_racing_env,
+    make_vectorized_car_racing,
+    ACTION_BOUNDS,
 )
-from environments.cartpole_env import (
-    make_cartpole_env,
-    make_vectorized_cartpole,
-    CartPoleTelemetryWrapper,
-    ACTION_MEANINGS as CARTPOLE_ACTIONS,
-    OBSERVATION_FEATURES as CARTPOLE_OBS_FEATURES,
+from environments.discrete_car_racing_env import (
+    make_discrete_car_racing_env,
+    make_vectorized_discrete_car_racing,
+    DiscreteCarRacingWrapper,
+    DISCRETE_ACTIONS,
+    DISCRETE_ACTION_NAMES,
+)
+from environments.wrappers import (
+    CarRacingTelemetryWrapper,
+    GrayscaleResizeObservation,
+    FrameSkipWrapper,
 )
 
 __all__ = [
-    "make_lunar_lander_env",
-    "make_vectorized_lunar_lander",
-    "LunarLanderTelemetryWrapper",
-    "LUNAR_LANDER_ACTIONS",
-    "LUNAR_LANDER_OBS_FEATURES",
-    "make_cartpole_env",
-    "make_vectorized_cartpole",
-    "CartPoleTelemetryWrapper",
-    "CARTPOLE_ACTIONS",
-    "CARTPOLE_OBS_FEATURES",
+    "make_car_racing_env",
+    "make_vectorized_car_racing",
+    "ACTION_BOUNDS",
+    "make_discrete_car_racing_env",
+    "make_vectorized_discrete_car_racing",
+    "DiscreteCarRacingWrapper",
+    "DISCRETE_ACTIONS",
+    "DISCRETE_ACTION_NAMES",
+    "CarRacingTelemetryWrapper",
+    "GrayscaleResizeObservation",
+    "FrameSkipWrapper",
 ]

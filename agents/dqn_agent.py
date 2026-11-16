@@ -1,8 +1,8 @@
 """
-Deep Q-Network (DQN) Agent Implementation
-==========================================
-Wraps Stable-Baselines3 DQN with architecture inspection,
-hyperparameter configuration, serialization, and deterministic inference.
+DQN Agent Implementation for Autonomous Car Racing
+==================================================
+Wraps Stable-Baselines3 DQN with a CNN policy for discrete driving actions,
+experience replay buffer, target network updates, and epsilon-greedy exploration.
 """
 
 import os
@@ -15,14 +15,14 @@ from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.vec_env import VecEnv
 
 
-class DQNAgent:
+class DQNRacingAgent:
     """
-    Deep Q-Network agent adhering to MLOps and reinforcement learning standards.
+    Deep Q-Network agent for discrete CarRacing-v3.
     Features:
-    - Experience replay buffer
-    - Target network with Polyak (soft) or periodic target updates
-    - Epsilon-greedy schedule
-    - Huber / Smooth L1 loss optimization
+    - NatureCNN visual feature extraction network
+    - Experience replay buffer sized for visual observations
+    - Target network with periodic sync
+    - Epsilon-greedy exploration schedule
     """
 
     def __init__(
@@ -45,41 +45,35 @@ class DQNAgent:
 
     @staticmethod
     def default_hyperparameters() -> Dict[str, Any]:
-        """Recommended hyperparameters for Box2D LunarLander."""
+        """Recommended hyperparameters for discrete CarRacing-v3 on CPU."""
         return {
-            "learning_rate": 6.3e-4,
-            "buffer_size": 100000,
-            "learning_starts": 2000,
-            "batch_size": 128,
-            "tau": 0.005,
-            "gamma": 0.995,
+            "learning_rate": 2.5e-4,
+            "buffer_size": 15000,
+            "learning_starts": 1000,
+            "batch_size": 64,
+            "tau": 1.0,
+            "gamma": 0.99,
             "train_freq": 4,
             "gradient_steps": 1,
-            "target_update_interval": 250,
+            "target_update_interval": 1000,
             "exploration_initial_eps": 1.0,
-            "exploration_final_eps": 0.02,
+            "exploration_final_eps": 0.05,
             "exploration_fraction": 0.25,
-            "max_grad_norm": 1.0,
-            "policy_kwargs": {
-                "net_arch": [256, 256],
-            },
+            "max_grad_norm": 10.0,
         }
 
     def build_model(self) -> DQN:
-        """Instantiate Stable-Baselines3 DQN model."""
+        """Instantiate Stable-Baselines3 DQN model with CnnPolicy."""
         if self.env is None:
             raise ValueError("Environment must be set before building the DQN model.")
 
         params = dict(self.hyperparams)
-        policy_kwargs = params.pop("policy_kwargs", {"net_arch": [256, 256]})
-
         self.model = DQN(
-            policy="MlpPolicy",
+            policy="CnnPolicy",
             env=self.env,
             seed=self.seed,
             device=self.device,
             tensorboard_log=self.tensorboard_log,
-            policy_kwargs=policy_kwargs,
             verbose=1,
             **params,
         )
@@ -89,7 +83,7 @@ class DQNAgent:
         self,
         total_timesteps: int,
         callback: Optional[Union[BaseCallback, list]] = None,
-        tb_log_name: str = "DQN",
+        tb_log_name: str = "DQN_CarRacing",
         reset_num_timesteps: bool = True,
     ) -> DQN:
         """Execute training loop with logging and checkpoints."""
@@ -110,7 +104,7 @@ class DQNAgent:
         observation: np.ndarray,
         deterministic: bool = True,
     ) -> Tuple[int, Optional[np.ndarray]]:
-        """Select action given observation."""
+        """Predict discrete driving action index."""
         if self.model is None:
             raise ValueError("Model has not been initialized or loaded.")
         action, state = self.model.predict(observation, deterministic=deterministic)
@@ -121,12 +115,11 @@ class DQNAgent:
         if self.model is None:
             raise ValueError("No model to save.")
         os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
-        # Ensure path ends with .zip
         save_path = path if path.endswith(".zip") else f"{path}.zip"
         self.model.save(save_path)
         return save_path
 
-    def load(self, path: str, env: Optional[Union[gym.Env, VecEnv]] = None) -> "DQNAgent":
+    def load(self, path: str, env: Optional[Union[gym.Env, VecEnv]] = None) -> "DQNRacingAgent":
         """Load trained model weights from disk."""
         load_path = path if path.endswith(".zip") else f"{path}.zip"
         if not os.path.exists(load_path):
@@ -146,24 +139,13 @@ class DQNAgent:
         total_params = sum(p.numel() for p in q_net.parameters())
         trainable_params = sum(p.numel() for p in q_net.parameters() if p.requires_grad)
 
-        layer_info = []
-        for name, module in q_net.named_modules():
-            if isinstance(module, torch.nn.Linear):
-                layer_info.append({
-                    "name": name,
-                    "in_features": module.in_features,
-                    "out_features": module.out_features,
-                    "bias": module.bias is not None,
-                })
-
         return {
             "algorithm": "Deep Q-Network (DQN)",
-            "policy_type": "MlpPolicy",
-            "observation_space": str(self.model.observation_space),
+            "policy_type": "CnnPolicy (Q-Network)",
             "action_space": str(self.model.action_space),
+            "observation_space": str(self.model.observation_space),
             "total_parameters": total_params,
             "trainable_parameters": trainable_params,
-            "layers": layer_info,
             "device": str(self.model.device),
             "hyperparameters": self.hyperparams,
         }

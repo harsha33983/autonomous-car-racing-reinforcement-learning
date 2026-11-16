@@ -1,0 +1,11 @@
+{
+  "total_timesteps": 3072,
+  "total_episodes": 13,
+  "final_reward_mean_10": 2.9499262,
+  "max_reward": 23.968831,
+  "min_reward": -35.626936,
+  "mean_reward": -2.183669076923077,
+  "std_reward": 15.016814692178224,
+  "mean_episode_length": 235.23076923076923,
+  "total_training_time_seconds": 370.84
+}

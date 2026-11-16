@@ -1,0 +1,6 @@
+episode,seed,reward,length,track_progress_percent,tiles_visited,total_tiles,lap_completed,off_track_count,off_track_fraction
+1,1000,17.343,101,3.3,10,300,False,51,0.0
+2,1001,23.887,153,5.3,16,300,False,50,0.0
+3,1002,31.218,153,5.3,16,300,False,50,0.0
+4,1003,-0.2,101,1.7,5,300,False,71,0.0
+5,1004,6.646,101,2.3,7,300,False,71,0.0

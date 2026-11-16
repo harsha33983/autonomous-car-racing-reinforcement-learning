@@ -1,8 +1,8 @@
 """
-Proximal Policy Optimization (PPO) Agent Implementation
-======================================================
-Wraps Stable-Baselines3 PPO with actor-critic architecture inspection,
-hyperparameter configuration, serialization, and deterministic/stochastic inference.
+PPO Agent Implementation for Autonomous Car Racing
+==================================================
+Wraps Stable-Baselines3 PPO with a CNN policy for continuous steering,
+throttle, and braking control from visual track observations.
 """
 
 import os
@@ -15,15 +15,14 @@ from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.vec_env import VecEnv
 
 
-class PPOAgent:
+class PPORacingAgent:
     """
-    Proximal Policy Optimization agent adhering to MLOps and reinforcement learning standards.
+    Proximal Policy Optimization agent for continuous CarRacing-v3.
     Features:
-    - Actor-Critic architecture with shared/separate feature extractors
-    - Clipped surrogate policy objective L_CLIP
-    - Generalized Advantage Estimation (GAE-lambda)
-    - Value function squared error optimization
-    - Entropy regularization bonus for exploratory stability
+    - NatureCNN visual feature extraction network
+    - Dual Actor-Critic heads for continuous action distribution [steering, gas, brake]
+    - GAE-lambda advantage estimation
+    - Clipped surrogate loss with entropy bonus
     """
 
     def __init__(
@@ -46,43 +45,32 @@ class PPOAgent:
 
     @staticmethod
     def default_hyperparameters() -> Dict[str, Any]:
-        """Recommended hyperparameters for Box2D LunarLander."""
+        """Recommended hyperparameters for CarRacing-v3 on CPU."""
         return {
-            "learning_rate": 2.5e-4,
-            "n_steps": 1024,
+            "learning_rate": 3e-4,
+            "n_steps": 512,
             "batch_size": 64,
             "n_epochs": 10,
-            "gamma": 0.999,
-            "gae_lambda": 0.98,
+            "gamma": 0.99,
+            "gae_lambda": 0.95,
             "clip_range": 0.2,
             "ent_coef": 0.01,
             "vf_coef": 0.5,
             "max_grad_norm": 0.5,
-            "policy_kwargs": {
-                "net_arch": {
-                    "pi": [256, 256],
-                    "vf": [256, 256],
-                }
-            },
         }
 
     def build_model(self) -> PPO:
-        """Instantiate Stable-Baselines3 PPO model."""
+        """Instantiate Stable-Baselines3 PPO model with CnnPolicy."""
         if self.env is None:
             raise ValueError("Environment must be set before building the PPO model.")
 
         params = dict(self.hyperparams)
-        policy_kwargs = params.pop("policy_kwargs", {
-            "net_arch": dict(pi=[256, 256], vf=[256, 256])
-        })
-
         self.model = PPO(
-            policy="MlpPolicy",
+            policy="CnnPolicy",
             env=self.env,
             seed=self.seed,
             device=self.device,
             tensorboard_log=self.tensorboard_log,
-            policy_kwargs=policy_kwargs,
             verbose=1,
             **params,
         )
@@ -92,7 +80,7 @@ class PPOAgent:
         self,
         total_timesteps: int,
         callback: Optional[Union[BaseCallback, list]] = None,
-        tb_log_name: str = "PPO",
+        tb_log_name: str = "PPO_CarRacing",
         reset_num_timesteps: bool = True,
     ) -> PPO:
         """Execute training loop with logging and checkpoints."""
@@ -112,12 +100,12 @@ class PPOAgent:
         self,
         observation: np.ndarray,
         deterministic: bool = True,
-    ) -> Tuple[int, Optional[np.ndarray]]:
-        """Select action given observation."""
+    ) -> Tuple[np.ndarray, Optional[np.ndarray]]:
+        """Predict continuous action [steering, gas, brake]."""
         if self.model is None:
             raise ValueError("Model has not been initialized or loaded.")
         action, state = self.model.predict(observation, deterministic=deterministic)
-        return int(action), state
+        return action, state
 
     def save(self, path: str) -> str:
         """Save trained model weights to disk."""
@@ -128,7 +116,7 @@ class PPOAgent:
         self.model.save(save_path)
         return save_path
 
-    def load(self, path: str, env: Optional[Union[gym.Env, VecEnv]] = None) -> "PPOAgent":
+    def load(self, path: str, env: Optional[Union[gym.Env, VecEnv]] = None) -> "PPORacingAgent":
         """Load trained model weights from disk."""
         load_path = path if path.endswith(".zip") else f"{path}.zip"
         if not os.path.exists(load_path):
@@ -148,24 +136,13 @@ class PPOAgent:
         total_params = sum(p.numel() for p in policy_net.parameters())
         trainable_params = sum(p.numel() for p in policy_net.parameters() if p.requires_grad)
 
-        layer_info = []
-        for name, module in policy_net.named_modules():
-            if isinstance(module, torch.nn.Linear):
-                layer_info.append({
-                    "name": name,
-                    "in_features": module.in_features,
-                    "out_features": module.out_features,
-                    "bias": module.bias is not None,
-                })
-
         return {
             "algorithm": "Proximal Policy Optimization (PPO)",
-            "policy_type": "MlpPolicy (Actor-Critic)",
-            "observation_space": str(self.model.observation_space),
+            "policy_type": "CnnPolicy (Actor-Critic)",
             "action_space": str(self.model.action_space),
+            "observation_space": str(self.model.observation_space),
             "total_parameters": total_params,
             "trainable_parameters": trainable_params,
-            "layers": layer_info,
             "device": str(self.model.device),
             "hyperparameters": self.hyperparams,
         }

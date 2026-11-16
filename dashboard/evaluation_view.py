@@ -1,48 +1,64 @@
 """
-Dashboard: Model Evaluation View
-================================
-Displays detailed 100-episode validation results, reward distributions,
-and risk/success analysis.
+Dashboard: Autonomous Racing Evaluation View
+============================================
+Displays detailed validation results, reward distributions, track progress %,
+and empirical stability analysis across evaluation episodes.
 """
 
 import os
 import json
+import glob
 import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 
 
+def load_eval_summary(eval_dir: str, prefix: str):
+    json_candidates = [
+        os.path.join(eval_dir, f"{prefix}_carracing_eval_summary.json"),
+        os.path.join(eval_dir, f"{prefix}_eval_summary.json"),
+    ]
+    csv_candidates = glob.glob(os.path.join(eval_dir, f"{prefix}_carracing_eval_*.csv")) + glob.glob(os.path.join(eval_dir, f"{prefix}_eval_*.csv"))
+
+    json_path = next((p for p in json_candidates if os.path.exists(p)), None)
+    csv_path = next((p for p in csv_candidates if os.path.exists(p)), None)
+
+    summary = None
+    if json_path:
+        with open(json_path, "r") as f:
+            summary = json.load(f)
+
+    df = pd.read_csv(csv_path) if csv_path else None
+    return summary, df
+
+
 def render_evaluation_view():
-    st.header("100-Episode Evaluation & Performance Analysis")
+    st.header("📊 Autonomous Racing Evaluation & Empirical Stability")
 
     eval_dir = "results/evaluation"
-    dqn_summary_path = os.path.join(eval_dir, "dqn_eval_summary.json")
-    ppo_summary_path = os.path.join(eval_dir, "ppo_eval_summary.json")
-    dqn_csv_path = os.path.join(eval_dir, "dqn_eval_100eps.csv")
-    ppo_csv_path = os.path.join(eval_dir, "ppo_eval_100eps.csv")
+    dqn_summary, dqn_df = load_eval_summary(eval_dir, "dqn")
+    ppo_summary, ppo_df = load_eval_summary(eval_dir, "ppo")
 
     eval_data = {}
-    if os.path.exists(dqn_summary_path):
-        with open(dqn_summary_path, "r") as f:
-            eval_data["DQN"] = json.load(f)
-    if os.path.exists(ppo_summary_path):
-        with open(ppo_summary_path, "r") as f:
-            eval_data["PPO"] = json.load(f)
+    if dqn_summary:
+        eval_data["DQN (Discrete)"] = (dqn_summary, dqn_df)
+    if ppo_summary:
+        eval_data["PPO (Continuous)"] = (ppo_summary, ppo_df)
 
     if not eval_data:
-        st.warning("No evaluation results found. Please execute the evaluation pipeline first.")
+        st.warning("Evaluation results not found yet. Execute the evaluation pipeline to generate metrics.")
         return
 
     algo_select = st.radio("Select Model to Inspect:", list(eval_data.keys()), horizontal=True)
-    summary = eval_data[algo_select]
+    summary, df = eval_data[algo_select]
 
     # Metrics row
     m1, m2, m3, m4, m5 = st.columns(5)
     m1.metric("Mean Reward", f"{summary.get('mean_reward', 0):.2f}", delta=f"± {summary.get('std_reward', 0):.2f}")
     m2.metric("Median (IQR)", f"{summary.get('median_reward', 0):.2f}", delta=f"IQR: {summary.get('iqr_reward', 0):.2f}")
-    m3.metric("Success Rate", f"{summary.get('success_rate_percent', 0):.1f}%")
-    m4.metric("Crash Rate", f"{summary.get('crash_rate_percent', 0):.1f}%")
+    m3.metric("Mean Track Progress", f"{summary.get('mean_track_progress_percent', 0):.1f}%")
+    m4.metric("Max Track Progress", f"{summary.get('max_track_progress_percent', 0):.1f}%")
     m5.metric("Improvement vs Random", f"+{summary.get('improvement_over_random_percent', 0):.1f}%")
 
     st.markdown("---")
@@ -53,33 +69,32 @@ def render_evaluation_view():
         st.subheader("Statistical Confidence Bounds")
         st.markdown(
             f"""
-            - **Sample Size ($N$)**: {summary.get('n_episodes', 100)} Independent Test Episodes
-            - **95% Confidence Interval for Mean**: `[{summary.get('ci_95_low', 0):.2f}, {summary.get('ci_95_high', 0):.2f}]`
+            - **Sample Size ($N$)**: {summary.get('n_episodes', 10)} Independent Evaluation Tracks
+            - **95% Confidence Interval**: `[{summary.get('ci_95_low', 0):.2f}, {summary.get('ci_95_high', 0):.2f}]`
             - **Max Episode Score**: `{summary.get('max_reward', 0):.2f}`
             - **Min Episode Score**: `{summary.get('min_reward', 0):.2f}`
-            - **Average Steps per Episode**: `{summary.get('mean_episode_length', 0):.1f}` steps
+            - **Mean Track Steps**: `{summary.get('mean_episode_length', 0):.1f}` steps
+            - **Lap Completion Rate**: `{summary.get('track_completion_rate_percent', 0):.1f}%`
             """
         )
 
     with col_right:
-        csv_file = dqn_csv_path if algo_select == "DQN" else ppo_csv_path
-        if os.path.exists(csv_file):
-            df = pd.read_csv(csv_file)
-            st.subheader("Reward Distribution Histogram")
+        if df is not None and not df.empty:
+            st.subheader("Evaluation Return Histogram")
+            color_hex = "#2563EB" if "DQN" in algo_select else "#059669"
             fig_hist = px.histogram(
                 df,
                 x="reward",
-                nbins=25,
-                color_discrete_sequence=["#2563EB" if algo_select == "DQN" else "#059669"],
+                nbins=15,
+                color_discrete_sequence=[color_hex],
                 labels={"reward": "Episode Reward"},
             )
-            fig_hist.add_vline(x=200, line_dash="dash", line_color="#EF4444", annotation_text="Solved Benchmark")
+            fig_hist.add_vline(x=0, line_dash="dot", line_color="#6B7280", annotation_text="Baseline")
             fig_hist.update_layout(template="plotly_white", height=280, showlegend=False)
             st.plotly_chart(fig_hist, use_container_width=True)
 
-    # Episode Table
-    if os.path.exists(csv_file):
+    # Detailed Table
+    if df is not None and not df.empty:
         st.markdown("---")
-        st.subheader(f"Detailed 100-Episode Telemetry Log ({algo_select})")
-        df = pd.read_csv(csv_file)
+        st.subheader(f"Detailed Telemetry Log ({algo_select})")
         st.dataframe(df, use_container_width=True)

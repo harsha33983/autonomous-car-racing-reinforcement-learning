@@ -1,0 +1,25 @@
+{
+  "prefix": "ppo",
+  "checkpoint_count": 0,
+  "checkpoints": [],
+  "latest_checkpoint": null,
+  "metadata": {
+    "algorithm": "PPO",
+    "timesteps": 3000,
+    "seed": 42,
+    "final_model": "models/ppo\\ppo_carracing_final.zip",
+    "best_model": "models/ppo\\ppo_carracing_best.zip",
+    "hyperparameters": {
+      "learning_rate": 0.0003,
+      "n_steps": 512,
+      "batch_size": 64,
+      "n_epochs": 10,
+      "gamma": 0.99,
+      "gae_lambda": 0.95,
+      "clip_range": 0.2,
+      "ent_coef": 0.01,
+      "vf_coef": 0.5,
+      "max_grad_norm": 0.5
+    }
+  }
+}

@@ -1,7 +1,7 @@
 """
-Checkpoint Manager
-==================
-Handles saving, rotating, manifesting, and resuming model checkpoints.
+Checkpoint Manager for Autonomous Car Racing
+============================================
+Handles periodic saving, rotation, manifest generation, and training resumption.
 """
 
 import os
@@ -11,19 +11,17 @@ from typing import Any, Dict, List, Optional
 from stable_baselines3.common.callbacks import CheckpointCallback
 
 
-class CheckpointManager:
-    """
-    Manages model checkpoints and manifests for reproducible MLOps pipelines.
-    """
+class RacingCheckpointManager:
+    """Manages neural network checkpoints for racing agents."""
 
-    def __init__(self, checkpoint_dir: str, prefix: str = "model"):
+    def __init__(self, checkpoint_dir: str, prefix: str = "racing_model"):
         self.checkpoint_dir = checkpoint_dir
         self.prefix = prefix
         self.manifest_path = os.path.join(checkpoint_dir, f"{prefix}_manifest.json")
         os.makedirs(self.checkpoint_dir, exist_ok=True)
 
-    def get_sb3_callback(self, save_freq: int = 25000, verbose: int = 1) -> CheckpointCallback:
-        """Create a Stable-Baselines3 CheckpointCallback."""
+    def get_sb3_callback(self, save_freq: int = 10000, verbose: int = 1) -> CheckpointCallback:
+        """Create Stable-Baselines3 CheckpointCallback."""
         return CheckpointCallback(
             save_freq=save_freq,
             save_path=self.checkpoint_dir,
@@ -41,7 +39,6 @@ class CheckpointManager:
 
         for f in sorted(files, key=os.path.getmtime):
             filename = os.path.basename(f)
-            # Extract step number
             try:
                 step_str = filename.replace(f"{self.prefix}_step_", "").replace("_steps.zip", "").replace(".zip", "")
                 step = int(step_str)
@@ -66,7 +63,7 @@ class CheckpointManager:
         return None
 
     def update_manifest(self, additional_info: Optional[Dict[str, Any]] = None) -> None:
-        """Update manifest JSON with all discovered checkpoints and optional metadata."""
+        """Update manifest JSON with all discovered checkpoints."""
         ckpts = self.list_checkpoints()
         manifest_data = {
             "prefix": self.prefix,
@@ -77,3 +74,10 @@ class CheckpointManager:
         }
         with open(self.manifest_path, "w") as f:
             json.dump(manifest_data, f, indent=2)
+
+    def load_manifest(self) -> Dict[str, Any]:
+        """Load manifest JSON file."""
+        if os.path.exists(self.manifest_path):
+            with open(self.manifest_path, "r") as f:
+                return json.load(f)
+        return {}

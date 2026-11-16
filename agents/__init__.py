@@ -1,6 +1,11 @@
-"""Agents module."""
-from agents.dqn_agent import DQNAgent
-from agents.ppo_agent import PPOAgent
-from agents.agent_factory import create_agent, load_agent
+"""Agents module for Autonomous Car Racing."""
+from agents.ppo_agent import PPORacingAgent
+from agents.dqn_agent import DQNRacingAgent
+from agents.agent_factory import create_racing_agent, load_racing_agent
 
-__all__ = ["DQNAgent", "PPOAgent", "create_agent", "load_agent"]
+__all__ = [
+    "PPORacingAgent",
+    "DQNRacingAgent",
+    "create_racing_agent",
+    "load_racing_agent",
+]

@@ -1,4 +1,8 @@
-"""Dashboard views module."""
+"""
+Autonomous Car Racing Dashboard Package
+=======================================
+"""
+
 from dashboard.overview import render_overview
 from dashboard.analytics import render_analytics
 from dashboard.comparison import render_comparison
